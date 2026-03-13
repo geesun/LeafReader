@@ -1,0 +1,6 @@
+name = "leafreader-worker"
+main = "src/index.ts"
+compatibility_date = "2026-03-13"
+
+[observability]
+enabled = true
