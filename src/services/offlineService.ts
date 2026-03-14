@@ -86,7 +86,7 @@ async function ensureContent(article: ArticleRecord, workerBaseUrl: string): Pro
   const updatedArticle: ArticleRecord = {
     ...article,
     fullContentHtml: fullText.contentHtml,
-    contentText: fullText.textContent || article.contentText,
+    contentText: article.contentText || fullText.textContent,
     contentSource: 'fulltext',
     hasFullContent: true,
     leadImageUrl: fullText.leadImageUrl || article.leadImageUrl,

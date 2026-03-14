@@ -64,7 +64,7 @@ export async function fetchArticleFullText(article: ArticleRecord, workerBaseUrl
   const updated: ArticleRecord = {
     ...article,
     fullContentHtml: fullText.contentHtml,
-    contentText: fullText.textContent || article.contentText,
+    contentText: article.contentText || fullText.textContent,
     contentSource: 'fulltext',
     hasFullContent: true,
     leadImageUrl: fullText.leadImageUrl || article.leadImageUrl,

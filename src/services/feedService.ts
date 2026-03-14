@@ -96,7 +96,7 @@ async function upsertFeedItems(
       article = {
         ...article,
         fullContentHtml: fullText.contentHtml,
-        contentText: fullText.textContent || article.contentText,
+        contentText: article.contentText || fullText.textContent,
         contentSource: 'fulltext',
         hasFullContent: true,
         leadImageUrl: fullText.leadImageUrl,
