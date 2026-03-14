@@ -444,10 +444,6 @@ a {
 
 .sheet-popup__header h2 {
   margin: 0;
-  border-radius: 999px;
-  outline: none;
-  appearance: none;
-  background: linear-gradient(90deg, var(--accent-soft) 0%, var(--accent) 100%);
 }
 
 .font-slider-label {

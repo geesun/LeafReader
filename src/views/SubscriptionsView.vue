@@ -330,7 +330,7 @@ onBeforeUnmount(() => {
         </div>
 
         <van-cell-group inset>
-          <van-field v-model="feedUrl" label="RSS" placeholder="" />
+          <van-field v-model="feedUrl" placeholder="https://example.com/feed.xml" />
         </van-cell-group>
 
         <div class="cell-actions">
