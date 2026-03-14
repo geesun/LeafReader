@@ -2,6 +2,7 @@ import { getDb } from '@/services/db'
 import { fetchFeedXml } from '@/services/workerClient'
 import { parseFeedXml } from '@/services/feedParser'
 import type { ArticleRecord, SubscriptionRecord } from '@/types/models'
+import { compareArticlesByRecency } from '@/utils/articleTime'
 import { createId } from '@/utils/id'
 
 const MAX_ARTICLE_COUNT = 500
@@ -99,7 +100,7 @@ async function trimArticles(db: Awaited<ReturnType<typeof getDb>>): Promise<void
   const articles = await db.getAll('articles')
   if (articles.length <= MAX_ARTICLE_COUNT) return
 
-  const sorted = [...articles].sort((a, b) => (b.publishedAt || b.createdAt).localeCompare(a.publishedAt || a.createdAt))
+  const sorted = [...articles].sort(compareArticlesByRecency)
   const expired = sorted.slice(MAX_ARTICLE_COUNT)
 
   const tx = db.transaction(['articles', 'offline_assets'], 'readwrite')

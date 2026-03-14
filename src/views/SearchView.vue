@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { formatRelativeDate } from '@/utils/date'
+import { getArticleDisplayDate } from '@/utils/articleTime'
 import { limitText } from '@/utils/text'
 import { useArticleStore } from '@/stores/articles'
 
@@ -47,7 +48,7 @@ onMounted(async () => {
         @click="router.push({ name: 'article', params: { id: article.id } })"
       >
         <div class="article-card__meta">
-          <span>{{ formatRelativeDate(article.publishedAt || article.createdAt) }}</span>
+          <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
           <span v-if="article.isFavorite">已收藏</span>
         </div>
         <h3>{{ article.title }}</h3>

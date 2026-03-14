@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
+import { getArticleSortTimestamp } from '@/utils/articleTime'
 import { useArticleStore } from '@/stores/articles'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useUiStore } from '@/stores/ui'
@@ -46,17 +47,17 @@ const articleCounts = computed(() => {
 
 const sortedSubscriptions = computed(() => {
   return [...subscriptionStore.items].sort((a, b) => {
-    const aLatest = articleStore.items
-      .filter((article) => article.subscriptionId === a.id)
-      .map((article) => article.publishedAt || article.createdAt)
-      .sort((left, right) => right.localeCompare(left))[0] || a.updatedAt
+    const aLatest = Math.max(
+      Date.parse(a.updatedAt) || 0,
+      ...articleStore.items.filter((article) => article.subscriptionId === a.id).map(getArticleSortTimestamp)
+    )
 
-    const bLatest = articleStore.items
-      .filter((article) => article.subscriptionId === b.id)
-      .map((article) => article.publishedAt || article.createdAt)
-      .sort((left, right) => right.localeCompare(left))[0] || b.updatedAt
+    const bLatest = Math.max(
+      Date.parse(b.updatedAt) || 0,
+      ...articleStore.items.filter((article) => article.subscriptionId === b.id).map(getArticleSortTimestamp)
+    )
 
-    return bLatest.localeCompare(aLatest)
+    return bLatest - aLatest
   })
 })
 

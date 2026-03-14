@@ -4,6 +4,7 @@ import { getDb } from '@/services/db'
 import { clearOfflineAssets, removeArticleOffline, saveArticleOffline } from '@/services/offlineService'
 import { extractFullText } from '@/services/workerClient'
 import type { ArticleRecord } from '@/types/models'
+import { compareArticlesByRecency } from '@/utils/articleTime'
 
 export function sanitizeHtml(html?: string): string {
   return DOMPurify.sanitize(html ?? '', {
@@ -14,7 +15,7 @@ export function sanitizeHtml(html?: string): string {
 export async function listArticles(): Promise<ArticleRecord[]> {
   const db = await getDb()
   const articles = await db.getAll('articles')
-  return articles.sort((a, b) => (b.publishedAt ?? b.createdAt).localeCompare(a.publishedAt ?? a.createdAt))
+  return articles.sort(compareArticlesByRecency)
 }
 
 export async function listFavoriteArticles(): Promise<ArticleRecord[]> {

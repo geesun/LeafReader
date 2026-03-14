@@ -1,4 +1,5 @@
 import type { ParsedFeed, ParsedFeedItem } from '@/types/models'
+import { normalizeTimestamp } from '@/utils/articleTime'
 import { stripHtml } from '@/utils/text'
 
 function getNamespacedText(node: ParentNode, prefix: string, localName: string): string | undefined {
@@ -60,7 +61,7 @@ function parseItem(node: Element): ParsedFeedItem | undefined {
     summary,
     contentHtml,
     contentText: stripHtml(contentHtml),
-    publishedAt: getText(node, ['pubDate', 'published', 'updated'])
+    publishedAt: normalizeTimestamp(getText(node, ['pubDate', 'published', 'updated']))
   }
 }
 

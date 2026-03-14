@@ -5,6 +5,7 @@ import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { formatRelativeDate } from '@/utils/date'
+import { compareArticlesByRecency, getArticleDisplayDate } from '@/utils/articleTime'
 import { limitText } from '@/utils/text'
 import { useArticleStore } from '@/stores/articles'
 import { useSubscriptionStore } from '@/stores/subscriptions'
@@ -57,7 +58,7 @@ const filteredArticles = computed(() => {
 
       return keywordMatched && filterMatched && subscriptionMatched
     })
-    .sort((a, b) => (b.publishedAt || b.createdAt).localeCompare(a.publishedAt || a.createdAt))
+    .sort(compareArticlesByRecency)
 })
 
 watch(
@@ -255,7 +256,7 @@ onBeforeUnmount(() => {
         >
           <div class="article-card__meta">
             <span>{{ subscriptionsById[article.subscriptionId] || '未知订阅' }}</span>
-            <span>{{ formatRelativeDate(article.publishedAt || article.createdAt) }}</span>
+            <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
             <span v-if="article.isFavorite">已收藏</span>
             <span v-if="article.hasFullContent">全文</span>
             <span v-if="article.isOfflineSaved">离线</span>

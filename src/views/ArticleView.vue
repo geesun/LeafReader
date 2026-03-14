@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { sanitizeHtml } from '@/services/articleService'
 import { formatRelativeDate } from '@/utils/date'
+import { getArticleDisplayDate } from '@/utils/articleTime'
 import { useArticleStore } from '@/stores/articles'
 
 const route = useRoute()
@@ -56,7 +57,7 @@ onMounted(async () => {
 
     <template v-if="article">
       <header class="article-header">
-        <p class="eyebrow">{{ formatRelativeDate(article.publishedAt || article.createdAt) }}</p>
+        <p class="eyebrow">{{ formatRelativeDate(getArticleDisplayDate(article)) }}</p>
         <h1>{{ article.title }}</h1>
         <p class="article-subline">
           <span>{{ article.author || '未知作者' }}</span>
