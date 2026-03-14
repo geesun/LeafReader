@@ -4,6 +4,8 @@ import { parseFeedXml } from '@/services/feedParser'
 import type { ArticleRecord, SubscriptionRecord } from '@/types/models'
 import { createId } from '@/utils/id'
 
+const MAX_ARTICLE_COUNT = 500
+
 export async function createSubscriptionFromUrl(
   feedUrl: string,
   workerBaseUrl: string
@@ -88,5 +90,28 @@ async function upsertFeedItems(subscriptionId: string, items: ReturnType<typeof 
     inserted += 1
   }
 
+  await trimArticles(db)
+
   return inserted
+}
+
+async function trimArticles(db: Awaited<ReturnType<typeof getDb>>): Promise<void> {
+  const articles = await db.getAll('articles')
+  if (articles.length <= MAX_ARTICLE_COUNT) return
+
+  const sorted = [...articles].sort((a, b) => (b.publishedAt || b.createdAt).localeCompare(a.publishedAt || a.createdAt))
+  const expired = sorted.slice(MAX_ARTICLE_COUNT)
+
+  const tx = db.transaction(['articles', 'offline_assets'], 'readwrite')
+
+  for (const article of expired) {
+    const offlineAssets = await tx.objectStore('offline_assets').index('by-article').getAll(article.id)
+    for (const asset of offlineAssets) {
+      await tx.objectStore('offline_assets').delete(asset.id)
+    }
+
+    await tx.objectStore('articles').delete(article.id)
+  }
+
+  await tx.done
 }

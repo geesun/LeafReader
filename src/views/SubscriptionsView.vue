@@ -3,18 +3,18 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 
+import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { useArticleStore } from '@/stores/articles'
-import { useSettingsStore } from '@/stores/settings'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useUiStore } from '@/stores/ui'
 
 const LONG_PRESS_MS = 420
 
 const articleStore = useArticleStore()
-const settingsStore = useSettingsStore()
 const subscriptionStore = useSubscriptionStore()
 const uiStore = useUiStore()
 const router = useRouter()
+const READING_FILTER_KEY = 'leafreader_reading_filter'
 
 const feedUrl = ref('')
 const submitting = ref(false)
@@ -44,8 +44,24 @@ const articleCounts = computed(() => {
   return { totalMap, unreadMap }
 })
 
+const sortedSubscriptions = computed(() => {
+  return [...subscriptionStore.items].sort((a, b) => {
+    const aLatest = articleStore.items
+      .filter((article) => article.subscriptionId === a.id)
+      .map((article) => article.publishedAt || article.createdAt)
+      .sort((left, right) => right.localeCompare(left))[0] || a.updatedAt
+
+    const bLatest = articleStore.items
+      .filter((article) => article.subscriptionId === b.id)
+      .map((article) => article.publishedAt || article.createdAt)
+      .sort((left, right) => right.localeCompare(left))[0] || b.updatedAt
+
+    return bLatest.localeCompare(aLatest)
+  })
+})
+
 const hasSelection = computed(() => selectedIds.value.length > 0)
-const allSelected = computed(() => selectedIds.value.length > 0 && selectedIds.value.length === subscriptionStore.items.length)
+const allSelected = computed(() => selectedIds.value.length > 0 && selectedIds.value.length === sortedSubscriptions.value.length)
 const refreshMessage = computed(() => {
   if (!refreshing.value || !refreshTotal.value) return ''
   return `正在刷新 ${refreshCompleted.value}/${refreshTotal.value}：${refreshCurrentTitle.value}`
@@ -141,7 +157,14 @@ async function handleCardClick(subscriptionId: string) {
   }
 
   activePressId = undefined
-  await router.push({ name: 'reading', query: { subscriptionId } })
+  const savedFilter = localStorage.getItem(READING_FILTER_KEY)
+  await router.push({
+    name: 'reading',
+    query: {
+      subscriptionId,
+      ...((savedFilter === 'unread' || savedFilter === 'favorites') ? { filter: savedFilter } : {})
+    }
+  })
 }
 
 function cancelSelection() {
@@ -154,7 +177,7 @@ function toggleSelectAll() {
     return
   }
 
-  selectedIds.value = subscriptionStore.items.map((item) => item.id)
+  selectedIds.value = sortedSubscriptions.value.map((item) => item.id)
 }
 
 async function addSubscription() {
@@ -162,14 +185,10 @@ async function addSubscription() {
     showToast('请输入 RSS 地址')
     return
   }
-  if (!settingsStore.settings.workerBaseUrl) {
-    showToast('请先在设置中填写 Worker 地址')
-    return
-  }
 
   submitting.value = true
   try {
-    await subscriptionStore.add(feedUrl.value.trim(), settingsStore.settings.workerBaseUrl)
+    await subscriptionStore.add(feedUrl.value.trim(), DEFAULT_WORKER_BASE_URL)
     await articleStore.loadAll()
     closeAddPopup()
     showToast('订阅已添加')
@@ -194,11 +213,6 @@ async function markSelectedRead() {
 }
 
 async function refreshSubscriptions() {
-  if (!settingsStore.settings.workerBaseUrl) {
-    showToast('请先在设置中配置 Worker 地址')
-    return
-  }
-
   refreshing.value = true
   refreshCompleted.value = 0
   refreshTotal.value = subscriptionStore.items.length
@@ -206,7 +220,7 @@ async function refreshSubscriptions() {
 
   try {
     const summary = await subscriptionStore.refreshAll(
-      settingsStore.settings.workerBaseUrl,
+      DEFAULT_WORKER_BASE_URL,
       3,
       ({ completed, total, title }) => {
         refreshCompleted.value = completed
@@ -249,13 +263,12 @@ onBeforeUnmount(() => {
       <van-button v-if="!hasSelection" class="page-header__icon" round plain icon="plus" @click="openAddPopup" />
     </header>
 
-    <van-notice-bar v-if="!settingsStore.settings.workerBaseUrl" left-icon="warning-o" text="请先到设置页填写 Worker 地址，否则无法抓取订阅。" />
-    <van-notice-bar v-else-if="refreshMessage" left-icon="replay" :text="refreshMessage" />
+    <van-notice-bar v-if="refreshMessage" left-icon="replay" :text="refreshMessage" />
 
     <van-pull-refresh v-model="refreshing" @refresh="refreshSubscriptions">
-      <div v-if="subscriptionStore.items.length" class="feed-grid">
+      <div v-if="sortedSubscriptions.length" class="feed-grid">
         <button
-          v-for="subscription in subscriptionStore.items"
+          v-for="subscription in sortedSubscriptions"
           :key="subscription.id"
           class="feed-icon-card"
           :class="{ 'feed-icon-card--selected': selectedIds.includes(subscription.id) }"

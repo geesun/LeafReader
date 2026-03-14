@@ -3,17 +3,17 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 
+import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { formatRelativeDate } from '@/utils/date'
 import { limitText } from '@/utils/text'
 import { useArticleStore } from '@/stores/articles'
-import { useSettingsStore } from '@/stores/settings'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 
 const articleStore = useArticleStore()
-const settingsStore = useSettingsStore()
 const subscriptionStore = useSubscriptionStore()
 const route = useRoute()
 const router = useRouter()
+const READING_FILTER_KEY = 'leafreader_reading_filter'
 
 const refreshing = ref(false)
 const keyword = ref('')
@@ -43,19 +43,21 @@ const filterLabel = computed(() => {
 const activeKeyword = computed(() => searchKeyword.value.trim().toLowerCase())
 
 const filteredArticles = computed(() => {
-  return articleStore.items.filter((article) => {
-    const keywordMatched =
-      !activeKeyword.value ||
-      article.title.toLowerCase().includes(activeKeyword.value) ||
-      (article.contentText ?? '').toLowerCase().includes(activeKeyword.value)
+  return articleStore.items
+    .filter((article) => {
+      const keywordMatched =
+        !activeKeyword.value ||
+        article.title.toLowerCase().includes(activeKeyword.value) ||
+        (article.contentText ?? '').toLowerCase().includes(activeKeyword.value)
 
-    const filterMatched =
-      filter.value === 'all' ? true : filter.value === 'unread' ? !article.isRead : article.isFavorite
+      const filterMatched =
+        filter.value === 'all' ? true : filter.value === 'unread' ? !article.isRead : article.isFavorite
 
-    const subscriptionMatched = selectedSubscriptionId.value ? article.subscriptionId === selectedSubscriptionId.value : true
+      const subscriptionMatched = selectedSubscriptionId.value ? article.subscriptionId === selectedSubscriptionId.value : true
 
-    return keywordMatched && filterMatched && subscriptionMatched
-  })
+      return keywordMatched && filterMatched && subscriptionMatched
+    })
+    .sort((a, b) => (b.publishedAt || b.createdAt).localeCompare(a.publishedAt || a.createdAt))
 })
 
 watch(
@@ -74,20 +76,25 @@ watch(
       return
     }
 
+    const savedFilter = localStorage.getItem(READING_FILTER_KEY)
+    if (savedFilter === 'unread' || savedFilter === 'favorites' || savedFilter === 'all') {
+      filter.value = savedFilter
+      return
+    }
+
     filter.value = 'all'
   },
   { immediate: true }
 )
 
+watch(filter, (value) => {
+  localStorage.setItem(READING_FILTER_KEY, value)
+})
+
 async function refreshAll() {
   refreshing.value = true
   try {
-    if (!settingsStore.settings.workerBaseUrl) {
-      showToast('请先在设置中配置 Worker 地址')
-      return
-    }
-
-    const summary = await subscriptionStore.refreshAll(settingsStore.settings.workerBaseUrl)
+    const summary = await subscriptionStore.refreshAll(DEFAULT_WORKER_BASE_URL)
     await articleStore.loadAll()
 
     if (summary.failureCount > 0) {
@@ -184,6 +191,20 @@ function handleOutsideClick(event: MouseEvent | TouchEvent) {
 
 onMounted(async () => {
   await Promise.all([articleStore.loadAll(), subscriptionStore.load()])
+
+  if (!route.query.filter) {
+    const savedFilter = localStorage.getItem(READING_FILTER_KEY)
+    if (savedFilter === 'unread' || savedFilter === 'favorites') {
+      await router.replace({
+        name: 'reading',
+        query: {
+          ...(typeof route.query.subscriptionId === 'string' ? { subscriptionId: route.query.subscriptionId } : {}),
+          filter: savedFilter
+        }
+      })
+    }
+  }
+
   document.addEventListener('click', handleOutsideClick)
   document.addEventListener('touchstart', handleOutsideClick)
 })

@@ -2,15 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { sanitizeHtml } from '@/services/articleService'
 import { formatRelativeDate } from '@/utils/date'
 import { useArticleStore } from '@/stores/articles'
-import { useSettingsStore } from '@/stores/settings'
 
 const route = useRoute()
 const router = useRouter()
 const articleStore = useArticleStore()
-const settingsStore = useSettingsStore()
 const loading = ref(true)
 
 const article = computed(() => articleStore.current)
@@ -18,12 +17,7 @@ const articleHtml = computed(() => {
   const current = article.value
   if (!current) return ''
 
-  const preferredContent =
-    settingsStore.settings.readContentPreference === 'feed'
-      ? current.feedContentHtml || current.fullContentHtml
-      : settingsStore.settings.readContentPreference === 'fulltext'
-        ? current.fullContentHtml || current.feedContentHtml
-        : current.fullContentHtml || current.feedContentHtml
+  const preferredContent = current.fullContentHtml || current.feedContentHtml
 
   return sanitizeHtml(current.offlineContentHtml || preferredContent || current.summary || '')
 })
@@ -41,8 +35,15 @@ async function toggleFavorite() {
 onMounted(async () => {
   const current = await articleStore.openArticle(route.params.id as string)
 
-  if (current && settingsStore.settings.autoMarkRead && !current.isRead) {
+  if (current && !current.isRead) {
     await articleStore.setRead(current, true)
+  }
+
+  if (current && !current.isOfflineSaved) {
+    try {
+      await articleStore.saveOffline(current, DEFAULT_WORKER_BASE_URL)
+    } catch {
+    }
   }
 
   loading.value = false

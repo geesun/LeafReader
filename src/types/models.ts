@@ -93,13 +93,6 @@ export interface ParsedFeedItem {
 }
 
 export interface AppSettings {
-  workerBaseUrl: string
   theme: 'system' | 'light' | 'dark'
   fontSize: number
-  readMode: 'simplified' | 'original'
-  autoMarkRead: boolean
-  listDensity: 'comfortable' | 'compact'
-  readContentPreference: 'auto' | 'feed' | 'fulltext'
-  autoFetchFullText: 'off' | 'on_open' | 'on_favorite'
-  offlineImagePolicy: 'manual' | 'on_open' | 'on_favorite'
 }

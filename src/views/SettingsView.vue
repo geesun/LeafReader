@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { exportSubscriptionsToOpml, parseOpml } from '@/services/opmlService'
-import { useArticleStore } from '@/stores/articles'
 import { useSettingsStore } from '@/stores/settings'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 
-const articleStore = useArticleStore()
 const settingsStore = useSettingsStore()
 const subscriptionStore = useSubscriptionStore()
 
-const workerBaseUrl = ref(settingsStore.settings.workerBaseUrl)
 const fontSize = ref(settingsStore.settings.fontSize)
+const importingOpml = ref(false)
+const importProgress = ref(0)
+const importTotal = ref(0)
 
 onMounted(async () => {
   await subscriptionStore.load()
+})
+
+watch(fontSize, (value) => {
+  settingsStore.patchSettings({ fontSize: value })
 })
 
 const themeLabel = computed(() => {
@@ -25,25 +29,41 @@ const themeLabel = computed(() => {
   return '跟随系统'
 })
 
-function saveBaseUrl() {
-  settingsStore.patchSettings({ workerBaseUrl: workerBaseUrl.value.trim() })
-  showToast('Worker 地址已保存')
-}
+async function downloadOpml() {
+  if (!subscriptionStore.items.length) {
+    showToast('当前没有可导出的订阅')
+    return
+  }
 
-function saveFontSize(value: number) {
-  fontSize.value = value
-  settingsStore.patchSettings({ fontSize: value })
-}
-
-function downloadOpml() {
   const content = exportSubscriptionsToOpml(subscriptionStore.items)
+  const fileName = `leafreader-subscriptions-${new Date().toISOString().slice(0, 10)}.opml`
+
+  if ('share' in navigator && 'canShare' in navigator) {
+    const file = new File([content], fileName, { type: 'text/xml;charset=utf-8' })
+
+    try {
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: '导出 OPML',
+          files: [file]
+        })
+        return
+      }
+    } catch {
+      return
+    }
+  }
+
   const blob = new Blob([content], { type: 'text/xml;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `leafreader-subscriptions-${new Date().toISOString().slice(0, 10)}.opml`
+  link.download = fileName
+  link.rel = 'noopener'
+  document.body.appendChild(link)
   link.click()
-  URL.revokeObjectURL(url)
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  link.remove()
 }
 
 async function importOpml(event: Event) {
@@ -51,30 +71,47 @@ async function importOpml(event: Event) {
   const file = target.files?.[0]
   if (!file) return
 
-  const text = await file.text()
-  const feeds = parseOpml(text)
+  importingOpml.value = true
+  importProgress.value = 0
+  importTotal.value = 0
+
+  let feeds
+
+  try {
+    const text = await file.text()
+    feeds = parseOpml(text)
+  } catch {
+    importingOpml.value = false
+    target.value = ''
+    showToast('OPML 文件读取失败')
+    return
+  }
+
+  if (!feeds.length) {
+    importingOpml.value = false
+    target.value = ''
+    showToast('没有识别到可导入的订阅')
+    return
+  }
+
+  importTotal.value = feeds.length
   let count = 0
 
   for (const item of feeds) {
     try {
-      if (!settingsStore.settings.workerBaseUrl) {
-        showToast('请先配置 Worker 地址')
-        break
-      }
-      await subscriptionStore.add(item.feedUrl, settingsStore.settings.workerBaseUrl)
+      await subscriptionStore.add(item.feedUrl, DEFAULT_WORKER_BASE_URL)
       count += 1
     } catch {
-      continue
+      // ignore duplicates or invalid feeds while keeping progress
     }
+
+    importProgress.value += 1
   }
 
+  await subscriptionStore.load()
+  importingOpml.value = false
   target.value = ''
-  showToast(`导入完成，新增 ${count} 个订阅`)
-}
-
-async function clearOffline() {
-  await articleStore.clearAllOffline()
-  showToast('已清空离线内容')
+  showToast(count > 0 ? `导入完成，新增 ${count} 个订阅` : '导入完成，没有新增订阅')
 }
 </script>
 
@@ -87,57 +124,36 @@ async function clearOffline() {
       </div>
     </header>
 
-    <van-cell-group inset title="网络服务">
-      <van-field
-        v-model="workerBaseUrl"
-        label="Worker"
-        type="url"
-        :placeholder="DEFAULT_WORKER_BASE_URL"
-        autocomplete="off"
-      />
-      <van-cell>
-        <template #title>默认服务</template>
-        <template #label>
-          <span>如果你不修改，应用默认使用 `{{ DEFAULT_WORKER_BASE_URL }}`。</span>
-        </template>
-      </van-cell>
-      <div class="cell-actions">
-        <van-button block round type="primary" @click="saveBaseUrl">保存 Worker 地址</van-button>
-      </div>
-    </van-cell-group>
-
     <van-cell-group inset title="阅读体验">
       <van-cell title="主题模式" :value="themeLabel" is-link @click="settingsStore.patchSettings({ theme: settingsStore.settings.theme === 'system' ? 'light' : settingsStore.settings.theme === 'light' ? 'dark' : 'system' })" />
-      <van-cell title="自动标记已读">
-        <template #right-icon>
-          <van-switch :model-value="settingsStore.settings.autoMarkRead" @update:model-value="settingsStore.patchSettings({ autoMarkRead: $event })" />
-        </template>
-      </van-cell>
-      <van-cell title="全文偏好" :value="settingsStore.settings.readContentPreference" is-link @click="settingsStore.patchSettings({ readContentPreference: settingsStore.settings.readContentPreference === 'auto' ? 'fulltext' : settingsStore.settings.readContentPreference === 'fulltext' ? 'feed' : 'auto' })" />
       <van-cell title="字号">
-        <template #label>
-          <van-stepper :model-value="fontSize" integer min="14" max="22" @update:model-value="saveFontSize" />
+        <template #right-icon>
+          <span class="font-size-value" :style="{ fontSize: `${fontSize}px` }">{{ fontSize }}px</span>
         </template>
-      </van-cell>
-    </van-cell-group>
-
-    <van-cell-group inset title="离线策略">
-      <van-cell title="图片下载策略" :value="settingsStore.settings.offlineImagePolicy" is-link @click="settingsStore.patchSettings({ offlineImagePolicy: settingsStore.settings.offlineImagePolicy === 'manual' ? 'on_open' : settingsStore.settings.offlineImagePolicy === 'on_open' ? 'on_favorite' : 'manual' })" />
-      <van-cell title="Android APK">
         <template #label>
-          <span>项目已预留 Capacitor，执行 `npm install` 后可用 `npm run cap:android` 打开 Android 工程。</span>
+          <div class="font-slider-wrap">
+            <span class="font-slider-label">小</span>
+            <input v-model="fontSize" class="font-range" type="range" min="14" max="24" step="1" />
+            <span class="font-slider-label">大</span>
+          </div>
         </template>
       </van-cell>
     </van-cell-group>
 
     <van-cell-group inset title="数据管理">
-      <van-cell title="导出 OPML" is-link @click="downloadOpml" />
-      <van-cell title="导入 OPML">
+      <van-cell title="导出 OPML">
         <template #label>
-          <input class="file-input" type="file" accept=".opml,.xml,text/xml" @change="importOpml" />
+          <span class="import-file-text" @click="downloadOpml">导出 OPML</span>
         </template>
       </van-cell>
-      <van-cell title="清空离线文章" is-link @click="clearOffline" />
+      <van-cell title="导入 OPML">
+        <template #label>
+          <label class="import-file-text import-file-text--picker">
+            <span>{{ importingOpml ? `正在导入 ${importProgress}/${importTotal}` : '选择 OPML 文件' }}</span>
+            <input class="file-input file-input--overlay" type="file" accept=".opml,.OPML,.xml,.XML,text/xml,application/xml,text/x-opml,application/octet-stream" @change="importOpml" />
+          </label>
+        </template>
+      </van-cell>
     </van-cell-group>
   </section>
 </template>

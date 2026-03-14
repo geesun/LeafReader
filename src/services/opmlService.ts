@@ -21,6 +21,11 @@ ${body}
 
 export function parseOpml(text: string): Array<{ title: string; feedUrl: string; siteUrl?: string }> {
   const doc = new DOMParser().parseFromString(text, 'text/xml')
+
+  if (doc.querySelector('parsererror')) {
+    throw new Error('Invalid OPML')
+  }
+
   return [...doc.querySelectorAll('outline[xmlUrl]')].map((node) => ({
     title: node.getAttribute('title') || node.getAttribute('text') || '未命名订阅',
     feedUrl: node.getAttribute('xmlUrl') || '',
