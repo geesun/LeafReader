@@ -1,5 +1,5 @@
 import { getDb } from '@/services/db'
-import { fetchAsset, extractFullText } from '@/services/workerClient'
+import { fetchAsset, extractFullText, createWorkerUrl } from '@/services/workerClient'
 import type { ArticleRecord, FullTextResult, OfflineAssetRecord } from '@/types/models'
 import { createId } from '@/utils/id'
 import { toAbsoluteUrl } from '@/utils/url'
@@ -20,6 +20,28 @@ function normalizeArticleHtml(html: string, baseUrl: string): string {
     const href = anchor.getAttribute('href')
     if (!href) return
     anchor.setAttribute('href', toAbsoluteUrl(href, baseUrl))
+    anchor.setAttribute('target', '_blank')
+    anchor.setAttribute('rel', 'noopener noreferrer')
+  })
+
+  return doc.body.innerHTML
+}
+
+export function proxyImagesForOnlineReading(html: string, articleLink: string, workerBaseUrl: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+
+  doc.querySelectorAll('img').forEach((img) => {
+    const src = img.getAttribute('src')
+    if (!src) return
+    const absolute = toAbsoluteUrl(src, articleLink)
+    img.setAttribute('src', createWorkerUrl(workerBaseUrl, 'asset', absolute))
+    img.setAttribute('loading', 'lazy')
+  })
+
+  doc.querySelectorAll('a').forEach((anchor) => {
+    const href = anchor.getAttribute('href')
+    if (!href) return
+    anchor.setAttribute('href', toAbsoluteUrl(href, articleLink))
     anchor.setAttribute('target', '_blank')
     anchor.setAttribute('rel', 'noopener noreferrer')
   })

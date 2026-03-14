@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { sanitizeHtml } from '@/services/articleService'
+import { proxyImagesForOnlineReading } from '@/services/offlineService'
 import { formatRelativeDate } from '@/utils/date'
 import { getArticleDisplayDate } from '@/utils/articleTime'
 import { useArticleStore } from '@/stores/articles'
@@ -18,9 +19,17 @@ const articleHtml = computed(() => {
   const current = article.value
   if (!current) return ''
 
-  const preferredContent = current.fullContentHtml || current.feedContentHtml
+  // Offline content already has local asset paths — render as-is
+  if (current.offlineContentHtml) {
+    return sanitizeHtml(current.offlineContentHtml)
+  }
 
-  return sanitizeHtml(current.offlineContentHtml || preferredContent || current.summary || '')
+  const preferredContent = current.fullContentHtml || current.feedContentHtml || current.summary || ''
+  const sanitized = sanitizeHtml(preferredContent)
+
+  // Rewrite image URLs through the Worker asset proxy so non-standard-port
+  // and hotlink-protected images load correctly in the browser
+  return proxyImagesForOnlineReading(sanitized, current.link, DEFAULT_WORKER_BASE_URL)
 })
 
 async function toggleRead() {
