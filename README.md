@@ -95,12 +95,33 @@ npm run worker:dev
 
 ## Android APK
 
+### Local build (requires Android Studio)
+
 ```bash
-npm install
 npm run cap:android
 ```
 
 Then build APK in Android Studio.
+
+### Automated build via GitHub Actions
+
+Pushing a version tag triggers a CI build and creates a GitHub Release with the APK attached automatically.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow (`.github/workflows/android-release.yml`) will:
+
+1. Install Node dependencies and build the web assets
+2. Run `cap sync android` to copy assets into the Android project
+3. Build a debug-signed APK with Gradle
+4. Create a GitHub Release and attach the APK
+
+The release will appear at `https://github.com/<your-username>/LeafReader/releases`.
+
+> The APK is signed with Android's debug key. To install it, enable "Install from unknown sources" on your Android device.
 
 ## Key Files
 
