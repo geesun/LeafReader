@@ -330,12 +330,12 @@ onBeforeUnmount(() => {
         </div>
 
         <van-cell-group inset>
-          <van-field v-model="feedUrl" label="RSS" placeholder="https://example.com/feed.xml" />
+          <van-field v-model="feedUrl" label="RSS" placeholder="" />
         </van-cell-group>
 
-        <van-cell-group inset class="cell-actions">
+        <div class="cell-actions">
           <van-button block round type="primary" :loading="submitting" @click="addSubscription">添加订阅</van-button>
-        </van-cell-group>
+        </div>
       </section>
     </van-popup>
 
