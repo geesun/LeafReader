@@ -48,12 +48,12 @@ const articleCounts = computed(() => {
 const sortedSubscriptions = computed(() => {
   return [...subscriptionStore.items].sort((a, b) => {
     const aLatest = Math.max(
-      Date.parse(a.updatedAt) || 0,
+      0,
       ...articleStore.items.filter((article) => article.subscriptionId === a.id).map(getArticleSortTimestamp)
     )
 
     const bLatest = Math.max(
-      Date.parse(b.updatedAt) || 0,
+      0,
       ...articleStore.items.filter((article) => article.subscriptionId === b.id).map(getArticleSortTimestamp)
     )
 
@@ -73,6 +73,7 @@ watch(hasSelection, (value) => {
 })
 
 function openAddPopup() {
+  feedUrl.value = ''
   showAddPopup.value = true
 }
 
@@ -332,9 +333,9 @@ onBeforeUnmount(() => {
           <van-field v-model="feedUrl" label="RSS" placeholder="https://example.com/feed.xml" />
         </van-cell-group>
 
-        <div class="cell-actions">
+        <van-cell-group inset class="cell-actions">
           <van-button block round type="primary" :loading="submitting" @click="addSubscription">添加订阅</van-button>
-        </div>
+        </van-cell-group>
       </section>
     </van-popup>
 

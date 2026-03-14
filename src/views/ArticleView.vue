@@ -62,14 +62,17 @@ onMounted(async () => {
 
 <template>
   <section class="page page--article">
-    <van-nav-bar left-arrow title="文章" @click-left="router.back()" />
+    <button class="article-back-btn" @click="router.back()">
+      <van-icon name="arrow-left" />
+    </button>
 
     <template v-if="article">
       <header class="article-header">
-        <p class="eyebrow">{{ formatRelativeDate(getArticleDisplayDate(article)) }}</p>
         <h1>{{ article.title }}</h1>
         <p class="article-subline">
           <span>{{ article.author || '未知作者' }}</span>
+          <span class="article-subline__sep">·</span>
+          <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
         </p>
 
         <div class="toolbar toolbar--header-right">
