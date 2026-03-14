@@ -259,7 +259,6 @@ onBeforeUnmount(() => {
             <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
             <span v-if="article.isFavorite">已收藏</span>
             <span v-if="article.hasFullContent">全文</span>
-            <span v-if="article.isOfflineSaved">离线</span>
           </div>
           <h3>{{ article.title }}</h3>
           <p>{{ limitText(article.contentText || article.summary || '', 96) }}</p>

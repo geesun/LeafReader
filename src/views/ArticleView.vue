@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
@@ -42,8 +42,16 @@ async function toggleFavorite() {
   await articleStore.toggleFavorite(article.value)
 }
 
-onMounted(async () => {
-  const current = await articleStore.openArticle(route.params.id as string)
+function scrollToTop() {
+  window.scrollTo(0, 0)
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+}
+
+async function loadArticle(id: string) {
+  scrollToTop()
+
+  const current = await articleStore.openArticle(id)
 
   if (current && !current.isRead) {
     await articleStore.setRead(current, true)
@@ -57,7 +65,19 @@ onMounted(async () => {
   }
 
   loading.value = false
-})
+  await nextTick()
+  scrollToTop()
+}
+
+watch(
+  () => route.params.id,
+  async (id) => {
+    if (typeof id !== 'string' || !id) return
+    loading.value = true
+    await loadArticle(id)
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -69,15 +89,15 @@ onMounted(async () => {
     <template v-if="article">
       <header class="article-header">
         <h1>{{ article.title }}</h1>
-        <p class="article-subline">
+        <div class="article-subline article-subline--actions">
           <span>{{ article.author || '未知作者' }}</span>
           <span class="article-subline__sep">·</span>
           <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
-        </p>
 
-        <div class="toolbar toolbar--header-right">
-          <van-button size="small" round plain @click="toggleRead">{{ article.isRead ? '标未读' : '标已读' }}</van-button>
-          <van-button size="small" round plain @click="toggleFavorite">{{ article.isFavorite ? '取消收藏' : '收藏' }}</van-button>
+          <div class="toolbar toolbar--header-inline">
+            <van-button size="small" round plain @click="toggleRead">{{ article.isRead ? '标未读' : '标已读' }}</van-button>
+            <van-button size="small" round plain @click="toggleFavorite">{{ article.isFavorite ? '取消收藏' : '收藏' }}</van-button>
+          </div>
         </div>
       </header>
 

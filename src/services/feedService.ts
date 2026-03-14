@@ -1,5 +1,5 @@
 import { getDb } from '@/services/db'
-import { fetchFeedXml } from '@/services/workerClient'
+import { extractFullText, fetchFeedXml } from '@/services/workerClient'
 import { parseFeedXml } from '@/services/feedParser'
 import type { ArticleRecord, SubscriptionRecord } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
@@ -36,14 +36,14 @@ export async function createSubscriptionFromUrl(
   }
 
   await db.put('subscriptions', subscription)
-  await upsertFeedItems(subscription.id, parsed.items)
+  await upsertFeedItems(subscription.id, parsed.items, workerBaseUrl)
   return subscription
 }
 
 export async function refreshSubscription(subscription: SubscriptionRecord, workerBaseUrl: string): Promise<number> {
   const xml = await fetchFeedXml(workerBaseUrl, subscription.feedUrl)
   const parsed = parseFeedXml(xml)
-  const inserted = await upsertFeedItems(subscription.id, parsed.items)
+  const inserted = await upsertFeedItems(subscription.id, parsed.items, workerBaseUrl)
   const db = await getDb()
   await db.put('subscriptions', {
     ...subscription,
@@ -58,7 +58,11 @@ export async function refreshSubscription(subscription: SubscriptionRecord, work
   return inserted
 }
 
-async function upsertFeedItems(subscriptionId: string, items: ReturnType<typeof parseFeedXml>['items']): Promise<number> {
+async function upsertFeedItems(
+  subscriptionId: string,
+  items: ReturnType<typeof parseFeedXml>['items'],
+  workerBaseUrl: string
+): Promise<number> {
   const db = await getDb()
   let inserted = 0
 
@@ -67,7 +71,7 @@ async function upsertFeedItems(subscriptionId: string, items: ReturnType<typeof 
     if (existing) continue
 
     const now = new Date().toISOString()
-    const article: ArticleRecord = {
+    let article: ArticleRecord = {
       id: createId('art'),
       subscriptionId,
       feedItemId: item.feedItemId,
@@ -85,6 +89,20 @@ async function upsertFeedItems(subscriptionId: string, items: ReturnType<typeof 
       isFavorite: false,
       hasFullContent: false,
       isOfflineSaved: false
+    }
+
+    try {
+      const fullText = await extractFullText(workerBaseUrl, item.link)
+      article = {
+        ...article,
+        fullContentHtml: fullText.contentHtml,
+        contentText: fullText.textContent || article.contentText,
+        contentSource: 'fulltext',
+        hasFullContent: true,
+        leadImageUrl: fullText.leadImageUrl,
+        author: fullText.byline || article.author
+      }
+    } catch {
     }
 
     await db.put('articles', article)
