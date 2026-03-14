@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast } from 'vant'
+import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { getArticleSortTimestamp } from '@/utils/articleTime'
@@ -201,6 +201,15 @@ async function addSubscription() {
 }
 
 async function deleteSelected() {
+  try {
+    await showConfirmDialog({
+      title: '删除订阅',
+      message: `确认删除所选 ${selectedIds.value.length} 个 RSS 订阅吗？`
+    })
+  } catch {
+    return
+  }
+
   await subscriptionStore.removeMany(selectedIds.value)
   await articleStore.loadAll()
   cancelSelection()
@@ -208,6 +217,15 @@ async function deleteSelected() {
 }
 
 async function markSelectedRead() {
+  try {
+    await showConfirmDialog({
+      title: '标记为已读',
+      message: `确认将所选 ${selectedIds.value.length} 个 RSS 订阅的文章全部标记为已读吗？`
+    })
+  } catch {
+    return
+  }
+
   await articleStore.markSubscriptionsRead(selectedIds.value)
   cancelSelection()
   showToast('所选订阅文章已标记为已读')
