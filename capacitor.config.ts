@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.leafreader.app',
-  appName: 'LeafReader',
+  appName: 'NeoReader',
   webDir: 'dist',
   server: {
     androidScheme: 'https'

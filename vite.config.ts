@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/icon.svg'],
       manifest: {
-        name: 'LeafReader',
-        short_name: 'LeafReader',
+        name: 'NeoReader',
+        short_name: 'NeoReader',
         description: 'Local-first RSS reader with full-text and offline support.',
         theme_color: '#3a6abf',
         background_color: '#1c3068',
