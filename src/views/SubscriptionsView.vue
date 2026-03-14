@@ -18,6 +18,7 @@ const router = useRouter()
 const READING_FILTER_KEY = 'leafreader_reading_filter'
 
 const feedUrl = ref('')
+const feedUrlPlaceholder = ref('https://example.com/feed.xml')
 const submitting = ref(false)
 const showAddPopup = ref(false)
 const selectedIds = ref<string[]>([])
@@ -330,7 +331,12 @@ onBeforeUnmount(() => {
         </div>
 
         <van-cell-group inset>
-          <van-field v-model="feedUrl" placeholder="https://example.com/feed.xml" />
+          <van-field
+            v-model="feedUrl"
+            :placeholder="feedUrlPlaceholder"
+            @focus="feedUrlPlaceholder = ''"
+            @blur="feedUrlPlaceholder = feedUrl ? '' : 'https://example.com/feed.xml'"
+          />
         </van-cell-group>
 
         <div class="cell-actions">
