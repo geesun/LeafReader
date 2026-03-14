@@ -40,18 +40,58 @@ npm run build
 npm run preview
 ```
 
-## Worker Development
+## Deployment
+
+### Deploy Worker to Cloudflare
+
+Requires [Wrangler](https://developers.cloudflare.com/workers/wrangler/) and a Cloudflare account. Log in once:
 
 ```bash
-npm run worker:dev
+npx wrangler login
+```
+
+Then deploy:
+
+```bash
 npm run worker:deploy
 ```
+
+The Worker will be available at:
+`https://leafreader-worker.<your-subdomain>.workers.dev`
 
 Worker routes:
 
 - `/rss?url=`: fetch RSS or Atom XML
 - `/extract?url=`: extract full text from article pages
 - `/asset?url=`: proxy images or other binary assets
+
+### Deploy Frontend to Cloudflare Pages
+
+Build and deploy in one step:
+
+```bash
+npm run build
+npx wrangler pages deploy dist --project-name leafreader --branch main
+```
+
+On first deploy, if the Pages project does not exist yet, create it first:
+
+```bash
+npx wrangler pages project create leafreader --production-branch main
+```
+
+Then run the deploy command above.
+
+Live URLs after deployment:
+
+- Production: `https://leafreader.pages.dev`
+- Preview (per-deployment): `https://<hash>.leafreader.pages.dev`
+
+### Worker Development (local)
+
+```bash
+npm run worker:dev
+```
 
 ## Android APK
 
