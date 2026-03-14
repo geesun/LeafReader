@@ -148,6 +148,10 @@ a {
   gap: 10px;
 }
 
+.page-footer-actions {
+  justify-content: flex-end;
+}
+
 .filter-row,
 .picker-row,
 .toolbar,
@@ -372,9 +376,8 @@ a {
   height: 32px;
   border-radius: 50%;
   border: none;
-  background: var(--card-bg);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.18);
+  color: #fff;
   cursor: pointer;
   font-size: 16px;
 }
