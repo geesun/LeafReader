@@ -73,6 +73,8 @@ a {
 
 .page--article {
   padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .page-header {
@@ -353,7 +355,7 @@ a {
 }
 
 .reader-surface {
-  padding: 20px;
+  padding: 16px 14px;
   margin-top: 16px;
   font-size: var(--reader-font-size);
   line-height: 1.8;
