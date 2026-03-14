@@ -5,6 +5,7 @@
   --border: rgba(31, 107, 91, 0.12);
   --text: #18241f;
   --muted: #5f6e68;
+  --text-placeholder: #b0bdb8;
   --accent: #1f6b5b;
   --accent-soft: #dbe9df;
   --warm: #f3b562;
@@ -24,6 +25,7 @@
   --border: rgba(219, 233, 223, 0.12);
   --text: #eef2ee;
   --muted: #96a79f;
+  --text-placeholder: #4a5c54;
   --accent: #72b4a5;
   --accent-soft: rgba(114, 180, 165, 0.14);
   --warm: #e1a24e;
@@ -359,7 +361,7 @@ a {
 }
 
 .article-back-btn {
-  position: absolute;
+  position: fixed;
   top: calc(14px + env(safe-area-inset-top));
   left: 14px;
   z-index: 10;
@@ -526,7 +528,7 @@ a {
 }
 
 .van-field__control::placeholder {
-  color: var(--muted);
+  color: var(--text-placeholder);
 }
 
 .van-field__control,
