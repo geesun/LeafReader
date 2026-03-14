@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'LeafReader',
         short_name: 'LeafReader',
         description: 'Local-first RSS reader with full-text and offline support.',
-        theme_color: '#1f6b5b',
-        background_color: '#f4efe6',
+        theme_color: '#3a6abf',
+        background_color: '#1c3068',
         display: 'standalone',
         start_url: '/',
         icons: [

@@ -1,4 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#1f6b5b"/>
-  <path d="M28 28h42c18 0 30 12 30 30s-12 30-30 30H52v12H28V28zm24 24v12h16c5 0 8-3 8-6s-3-6-8-6H52z" fill="#f4efe6"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b8dd9"/>
+      <stop offset="1" stop-color="#3a6abf"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+
+  <!-- book 3 (back, teal) -->
+  <rect x="44" y="30" width="46" height="58" rx="5" fill="#4ecdc4" opacity=".85"/>
+  <rect x="44" y="30" width="6" height="58" rx="3" fill="#7ee8e2" opacity=".7"/>
+
+  <!-- book 2 (middle, coral) -->
+  <rect x="39" y="35" width="46" height="58" rx="5" fill="#f0856a" opacity=".90"/>
+  <rect x="39" y="35" width="6" height="58" rx="3" fill="#faa898" opacity=".7"/>
+
+  <!-- book 1 (front, gold) -->
+  <rect x="34" y="40" width="46" height="58" rx="5" fill="#fad57a"/>
+  <rect x="34" y="40" width="6" height="58" rx="3" fill="#fdeea0" opacity=".8"/>
+  <!-- page lines on front book -->
+  <rect x="47" y="54" width="24" height="4" rx="2" fill="#fff" opacity=".40"/>
+  <rect x="47" y="63" width="18" height="4" rx="2" fill="#fff" opacity=".40"/>
+  <rect x="47" y="72" width="22" height="4" rx="2" fill="#fff" opacity=".40"/>
+  <rect x="47" y="81" width="13" height="4" rx="2" fill="#fff" opacity=".40"/>
 </svg>
