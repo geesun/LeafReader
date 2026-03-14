@@ -1,8 +1,8 @@
-# LeafReader Requirements and Implementation Plan
+# NeoReader Requirements and Implementation Plan
 
 ## 1. Product Positioning
 
-- Product name: `LeafReader`
+- Product name: `NeoReader`
 - Form: local-first RSS reader for mobile web, installable PWA, and Android APK package
 - Core stack: `Vue 3` + `Vite` + `Vant UI`
 - Storage: `IndexedDB` for structured data, `localStorage` for lightweight settings
@@ -110,7 +110,7 @@
 
 Use a single Worker base URL. Current default:
 
-- `https://leafreader-worker.qixiang-xu.workers.dev`
+- `https://neoreader-worker.qixiang-xu.workers.dev`
 
 Frontend stores this base URL and derives endpoints from it.
 
@@ -366,7 +366,7 @@ This is safer for iOS storage quotas and simpler for first release.
 
 ## 15. Data Model
 
-Database name: `leafreader-db`
+Database name: `neoreader-db`
 
 ### 15.1 `categories`
 
@@ -470,16 +470,16 @@ Indexes:
 
 ## 16. Local Settings Keys
 
-- `leafreader_worker_base_url`
-- `leafreader_theme`
-- `leafreader_font_size`
-- `leafreader_read_mode`
-- `leafreader_auto_mark_read`
-- `leafreader_list_density`
-- `leafreader_last_tab`
-- `leafreader_read_content_preference`
-- `leafreader_auto_fetch_fulltext`
-- `leafreader_offline_image_policy`
+- `neoreader_worker_base_url`
+- `neoreader_theme`
+- `neoreader_font_size`
+- `neoreader_read_mode`
+- `neoreader_auto_mark_read`
+- `neoreader_list_density`
+- `neoreader_last_tab`
+- `neoreader_read_content_preference`
+- `neoreader_auto_fetch_fulltext`
+- `neoreader_offline_image_policy`
 
 ## 17. Article Reading Logic
 
@@ -640,7 +640,7 @@ Priority:
 
 ## 26. Recommended Initial Development Defaults
 
-- Worker base URL default: `https://leafreader-worker.qixiang-xu.workers.dev`
+- Worker base URL default: `https://neoreader-worker.qixiang-xu.workers.dev`
 - Theme: follow system
 - Font size: `16`
 - Read mode: simplified

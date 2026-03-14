@@ -14,7 +14,7 @@ const articleStore = useArticleStore()
 const subscriptionStore = useSubscriptionStore()
 const route = useRoute()
 const router = useRouter()
-const READING_FILTER_KEY = 'leafreader_reading_filter'
+const READING_FILTER_KEY = 'neoreader_reading_filter'
 
 const refreshing = ref(false)
 const keyword = ref('')

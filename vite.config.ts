@@ -33,14 +33,14 @@ export default defineConfig({
             urlPattern: ({ request }) => request.destination === 'document',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'leafreader-pages'
+              cacheName: 'neoreader-pages'
             }
           },
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/__offline_asset__/'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'leafreader-offline-assets'
+              cacheName: 'neoreader-offline-assets'
             }
           }
         ]

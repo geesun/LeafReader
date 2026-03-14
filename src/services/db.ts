@@ -2,7 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 
 import type { ArticleRecord, OfflineAssetRecord, SubscriptionRecord } from '@/types/models'
 
-interface LeafReaderDB extends DBSchema {
+interface NeoReaderDB extends DBSchema {
   subscriptions: {
     key: string
     value: SubscriptionRecord
@@ -26,11 +26,11 @@ interface LeafReaderDB extends DBSchema {
   }
 }
 
-let dbPromise: Promise<IDBPDatabase<LeafReaderDB>> | undefined
+let dbPromise: Promise<IDBPDatabase<NeoReaderDB>> | undefined
 
 export function getDb() {
   if (!dbPromise) {
-    dbPromise = openDB<LeafReaderDB>('leafreader-db', 1, {
+    dbPromise = openDB<NeoReaderDB>('neoreader-db', 1, {
       upgrade(db) {
         const subscriptionStore = db.createObjectStore('subscriptions', { keyPath: 'id' })
         subscriptionStore.createIndex('by-feed-url', 'feedUrl', { unique: true })

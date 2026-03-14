@@ -4,7 +4,7 @@ import type { ArticleRecord, FullTextResult, OfflineAssetRecord } from '@/types/
 import { createId } from '@/utils/id'
 import { toAbsoluteUrl } from '@/utils/url'
 
-const OFFLINE_CACHE = 'leafreader-offline-assets'
+const OFFLINE_CACHE = 'neoreader-offline-assets'
 
 function normalizeArticleHtml(html: string, baseUrl: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')

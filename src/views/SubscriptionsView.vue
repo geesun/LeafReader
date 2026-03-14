@@ -15,7 +15,7 @@ const articleStore = useArticleStore()
 const subscriptionStore = useSubscriptionStore()
 const uiStore = useUiStore()
 const router = useRouter()
-const READING_FILTER_KEY = 'leafreader_reading_filter'
+const READING_FILTER_KEY = 'neoreader_reading_filter'
 
 const feedUrl = ref('')
 const feedUrlPlaceholder = ref('https://example.com/feed.xml')

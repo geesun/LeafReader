@@ -49,23 +49,23 @@ jobs:
       - name: Rename APK
         run: |
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
-          cp android/app/build/outputs/apk/debug/app-debug.apk leafreader-${VERSION}-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk neoreader-${VERSION}-debug.apk
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION }}
-          name: "LeafReader ${{ env.VERSION }}"
+          name: "NeoReader ${{ env.VERSION }}"
           body: |
-            ## LeafReader ${{ env.VERSION }}
+            ## NeoReader ${{ env.VERSION }}
 
             ### 安装说明
-            1. 下载 `leafreader-${{ env.VERSION }}-debug.apk`
+            1. 下载 `neoreader-${{ env.VERSION }}-debug.apk`
             2. 在 Android 设备上开启「允许安装未知来源应用」
             3. 安装 APK
 
             > 此版本使用 debug 签名，仅供测试使用。
-          files: leafreader-${{ env.VERSION }}-debug.apk
+          files: neoreader-${{ env.VERSION }}-debug.apk
           draft: false
           prerelease: false

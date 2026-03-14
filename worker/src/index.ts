@@ -88,7 +88,7 @@ async function proxyRequest(targetUrl: URL, maxBytes: number): Promise<Response>
   const response = await fetch(targetUrl.toString(), {
     redirect: 'follow',
     headers: {
-      'User-Agent': 'LeafReaderWorker/1.0'
+      'User-Agent': 'NeoReaderWorker/1.0'
     }
   })
 
@@ -105,7 +105,7 @@ async function extractArticle(targetUrl: URL): Promise<Response> {
   const response = await fetch(targetUrl.toString(), {
     redirect: 'follow',
     headers: {
-      'User-Agent': 'LeafReaderWorker/1.0'
+      'User-Agent': 'NeoReaderWorker/1.0'
     }
   })
 
@@ -171,7 +171,7 @@ export default {
         return extractArticle(assertRemoteUrl(url.searchParams.get('url')))
       }
 
-      return json({ ok: true, service: 'leafreader-worker' })
+      return json({ ok: true, service: 'neoreader-worker' })
     } catch (error) {
       return json(
         {

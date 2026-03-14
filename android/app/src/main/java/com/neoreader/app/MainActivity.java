@@ -1,4 +1,4 @@
-package com.leafreader.app;
+package com.neoreader.app;
 
 import com.getcapacitor.BridgeActivity;
 

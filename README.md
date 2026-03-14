@@ -1,4 +1,4 @@
-# LeafReader
+# NeoReader
 
 Local-first RSS reader built with `Vue 3`, `Vite`, `Vant`, `IndexedDB`, `PWA`, and a unified `Cloudflare Worker` for feed proxying, full-text extraction, and asset downloading.
 
@@ -11,7 +11,7 @@ npm run dev
 
 Default Worker base URL:
 
-`https://leafreader-worker.qixiang-xu.workers.dev`
+`https://neoreader-worker.qixiang-xu.workers.dev`
 
 If the user does not change the setting, the app uses this address by default.
 
@@ -57,7 +57,7 @@ npm run worker:deploy
 ```
 
 The Worker will be available at:
-`https://leafreader-worker.<your-subdomain>.workers.dev`
+`https://neoreader-worker.<your-subdomain>.workers.dev`
 
 Worker routes:
 
@@ -71,21 +71,21 @@ Build and deploy in one step:
 
 ```bash
 npm run build
-npx wrangler pages deploy dist --project-name leafreader --branch main
+npx wrangler pages deploy dist --project-name neoreader --branch main
 ```
 
 On first deploy, if the Pages project does not exist yet, create it first:
 
 ```bash
-npx wrangler pages project create leafreader --production-branch main
+npx wrangler pages project create neoreader --production-branch main
 ```
 
 Then run the deploy command above.
 
 Live URLs after deployment:
 
-- Production: `https://leafreader.pages.dev`
-- Preview (per-deployment): `https://<hash>.leafreader.pages.dev`
+- Production: `https://neoreader.pages.dev`
+- Preview (per-deployment): `https://<hash>.neoreader.pages.dev`
 
 ### Worker Development (local)
 
@@ -119,7 +119,7 @@ The workflow (`.github/workflows/android-release.yml`) will:
 3. Build a debug-signed APK with Gradle
 4. Create a GitHub Release and attach the APK
 
-The release will appear at `https://github.com/<your-username>/LeafReader/releases`.
+The release will appear in your GitHub repository Releases page.
 
 > The APK is signed with Android's debug key. To install it, enable "Install from unknown sources" on your Android device.
 

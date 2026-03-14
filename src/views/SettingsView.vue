@@ -36,7 +36,7 @@ async function downloadOpml() {
   }
 
   const content = exportSubscriptionsToOpml(subscriptionStore.items)
-  const fileName = `leafreader-subscriptions-${new Date().toISOString().slice(0, 10)}.opml`
+  const fileName = `neoreader-subscriptions-${new Date().toISOString().slice(0, 10)}.opml`
 
   if ('share' in navigator && 'canShare' in navigator) {
     const file = new File([content], fileName, { type: 'text/xml;charset=utf-8' })
