@@ -23,6 +23,10 @@ settingsStore.initialize()
 
 void getDb()
 
+document.addEventListener('contextmenu', (event) => {
+  event.preventDefault()
+})
+
 registerSW({
   immediate: true
 })

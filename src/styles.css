@@ -54,6 +54,15 @@ body,
   margin: 0;
 }
 
+html,
+body,
+#app,
+button,
+a,
+img {
+  -webkit-touch-callout: none;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -239,10 +248,17 @@ a {
 .article-card {
   padding: 16px;
   text-align: left;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
 }
 
 .article-card--read {
   opacity: 0.72;
+}
+
+.article-card--pressed {
+  transform: scale(0.985);
+  background: color-mix(in srgb, var(--bg-elevated) 86%, var(--accent-soft));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow-color) 88%, transparent);
 }
 
 .article-card__meta,
@@ -365,11 +381,18 @@ a {
   text-align: center;
   touch-action: pan-y;
   overflow: hidden;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
 }
 
 .feed-icon-card--selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.feed-icon-card--pressed {
+  transform: scale(0.965);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, var(--accent-soft));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow-color) 88%, transparent);
 }
 
 .feed-icon-card__avatar {
