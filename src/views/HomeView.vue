@@ -111,8 +111,12 @@ async function refreshAll() {
   }
 }
 
-async function openArticle(articleId: string) {
-  await router.push({ name: 'article', params: { id: articleId } })
+async function openArticle(article: (typeof filteredArticles.value)[number]) {
+  if (!article.isRead) {
+    await articleStore.setRead(article, true)
+  }
+
+  await router.push({ name: 'article', params: { id: article.id } })
 }
 
 async function clearSubscriptionFilter() {
@@ -252,7 +256,7 @@ onBeforeUnmount(() => {
           :key="article.id"
           class="article-card"
           :class="{ 'article-card--read': article.isRead }"
-          @click="openArticle(article.id)"
+          @click="openArticle(article)"
         >
           <div class="article-card__meta">
             <span>{{ subscriptionsById[article.subscriptionId] || '未知订阅' }}</span>
