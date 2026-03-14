@@ -126,9 +126,12 @@ async function importOpml(event: Event) {
 
     <van-cell-group inset title="阅读体验">
       <van-cell title="主题模式" :value="themeLabel" is-link @click="settingsStore.patchSettings({ theme: settingsStore.settings.theme === 'system' ? 'light' : settingsStore.settings.theme === 'light' ? 'dark' : 'system' })" />
-      <van-cell title="字号">
-        <template #right-icon>
-          <span class="font-size-value" :style="{ fontSize: `${fontSize}px` }">{{ fontSize }}px</span>
+      <van-cell>
+        <template #title>
+          <div class="setting-cell-head">
+            <span>字号</span>
+            <span class="font-size-value" :style="{ fontSize: `${fontSize}px` }">{{ fontSize }}px</span>
+          </div>
         </template>
         <template #label>
           <div class="font-slider-wrap">
