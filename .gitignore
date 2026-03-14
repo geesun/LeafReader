@@ -1,0 +1,16 @@
+.DS_Store
+node_modules/
+dist/
+.wrangler/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+
+# Editor files
+.idea/
+.vscode/
