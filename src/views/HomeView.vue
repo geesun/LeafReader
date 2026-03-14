@@ -25,6 +25,7 @@ const showFilterPanel = ref(false)
 const searchKeyword = ref('')
 const titleTriggerRef = ref<HTMLElement | null>(null)
 const filterPanelRef = ref<HTMLElement | null>(null)
+const pressedArticleId = ref('')
 
 const subscriptionsById = computed<Record<string, string>>(() => {
   return Object.fromEntries(subscriptionStore.items.map((item) => [item.id, item.title]))
@@ -112,11 +113,20 @@ async function refreshAll() {
 }
 
 async function openArticle(article: (typeof filteredArticles.value)[number]) {
-  if (!article.isRead) {
-    await articleStore.setRead(article, true)
-  }
+  if (showFilterPanel.value) return
 
-  await router.push({ name: 'article', params: { id: article.id } })
+  pressedArticleId.value = article.id
+  try {
+    await new Promise((resolve) => window.setTimeout(resolve, 110))
+
+    if (!article.isRead) {
+      await articleStore.setRead(article, true)
+    }
+
+    await router.push({ name: 'article', params: { id: article.id } })
+  } finally {
+    pressedArticleId.value = ''
+  }
 }
 
 async function clearSubscriptionFilter() {
@@ -186,6 +196,25 @@ function toggleFilterPanel() {
   showFilterPanel.value = !showFilterPanel.value
 }
 
+function clearPressedArticle() {
+  pressedArticleId.value = ''
+}
+
+function handlePageTapCapture(event: MouseEvent | TouchEvent) {
+  if (!showFilterPanel.value) return
+
+  const target = event.target as Node | null
+  if (!target) return
+  if (titleTriggerRef.value?.contains(target)) return
+  if (filterPanelRef.value?.contains(target)) return
+
+  event.stopPropagation()
+  if ('preventDefault' in event) {
+    event.preventDefault()
+  }
+  showFilterPanel.value = false
+}
+
 function handleOutsideClick(event: MouseEvent | TouchEvent) {
   const target = event.target as Node | null
   if (!target) return
@@ -221,7 +250,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="page">
+  <section class="page" @click.capture="handlePageTapCapture" @touchstart.capture="handlePageTapCapture">
     <header class="page-header page-header--aligned">
       <van-button class="page-header__icon" round plain icon="search" @click="openSearch" />
       <button ref="titleTriggerRef" class="page-header__center page-header__center-btn" @click="toggleFilterPanel">
@@ -255,7 +284,16 @@ onBeforeUnmount(() => {
           v-for="article in filteredArticles"
           :key="article.id"
           class="article-card"
-          :class="{ 'article-card--read': article.isRead }"
+          :class="{
+            'article-card--read': article.isRead,
+            'article-card--pressed': pressedArticleId === article.id
+          }"
+          @touchstart="pressedArticleId = article.id"
+          @touchend="clearPressedArticle"
+          @touchcancel="clearPressedArticle"
+          @mousedown="pressedArticleId = article.id"
+          @mouseup="clearPressedArticle"
+          @mouseleave="clearPressedArticle"
           @click="openArticle(article)"
         >
           <div class="article-card__meta">

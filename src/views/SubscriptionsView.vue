@@ -27,6 +27,7 @@ const refreshCompleted = ref(0)
 const refreshTotal = ref(0)
 const refreshCurrentTitle = ref('')
 const movedDuringPress = ref(false)
+const pressedSubscriptionId = ref('')
 
 let pressTimer: number | undefined
 let activePressId: string | undefined
@@ -105,6 +106,18 @@ function clearPressTimer() {
   activePressId = undefined
 }
 
+function setPressedSubscription(subscriptionId: string) {
+  pressedSubscriptionId.value = subscriptionId
+}
+
+function clearPressedSubscription() {
+  pressedSubscriptionId.value = ''
+}
+
+function waitForTapFeedback() {
+  return new Promise((resolve) => window.setTimeout(resolve, 110))
+}
+
 function toggleSelection(subscriptionId: string) {
   if (selectedIds.value.includes(subscriptionId)) {
     selectedIds.value = selectedIds.value.filter((item) => item !== subscriptionId)
@@ -129,6 +142,7 @@ function startPress(subscriptionId: string) {
 
 function markMoved() {
   movedDuringPress.value = true
+  clearPressedSubscription()
   finishPress()
 }
 
@@ -156,18 +170,25 @@ async function handleCardClick(subscriptionId: string) {
   if (hasSelection.value) {
     toggleSelection(subscriptionId)
     activePressId = undefined
+    clearPressedSubscription()
     return
   }
 
   activePressId = undefined
-  const savedFilter = localStorage.getItem(READING_FILTER_KEY)
-  await router.push({
-    name: 'reading',
-    query: {
-      subscriptionId,
-      ...((savedFilter === 'unread' || savedFilter === 'favorites') ? { filter: savedFilter } : {})
-    }
-  })
+  setPressedSubscription(subscriptionId)
+  try {
+    await waitForTapFeedback()
+    const savedFilter = localStorage.getItem(READING_FILTER_KEY)
+    await router.push({
+      name: 'reading',
+      query: {
+        subscriptionId,
+        ...((savedFilter === 'unread' || savedFilter === 'favorites') ? { filter: savedFilter } : {})
+      }
+    })
+  } finally {
+    clearPressedSubscription()
+  }
 }
 
 function cancelSelection() {
@@ -292,15 +313,18 @@ onBeforeUnmount(() => {
           v-for="subscription in sortedSubscriptions"
           :key="subscription.id"
           class="feed-icon-card"
-          :class="{ 'feed-icon-card--selected': selectedIds.includes(subscription.id) }"
-          @touchstart.passive="startPress(subscription.id)"
+          :class="{
+            'feed-icon-card--selected': selectedIds.includes(subscription.id),
+            'feed-icon-card--pressed': pressedSubscriptionId === subscription.id
+          }"
+          @touchstart.passive="startPress(subscription.id); setPressedSubscription(subscription.id)"
           @touchmove.passive="markMoved"
-          @touchend="finishPress"
-          @touchcancel="finishPress"
-          @mousedown="startPress(subscription.id)"
+          @touchend="finishPress(); clearPressedSubscription()"
+          @touchcancel="finishPress(); clearPressedSubscription()"
+          @mousedown="startPress(subscription.id); setPressedSubscription(subscription.id)"
           @mousemove="markMoved"
           @mouseup="finishPress"
-          @mouseleave="finishPress"
+          @mouseleave="finishPress(); clearPressedSubscription()"
           @click="handleCardClick(subscription.id)"
         >
           <div class="feed-icon-card__badge" v-if="articleCounts.unreadMap[subscription.id]">{{ articleCounts.unreadMap[subscription.id] }}</div>
