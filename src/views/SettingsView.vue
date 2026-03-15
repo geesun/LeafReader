@@ -155,44 +155,55 @@ async function importOpml(event: Event) {
       </div>
     </header>
 
-    <van-cell-group inset title="阅读体验">
-      <van-cell title="主题模式" :value="themeLabel" is-link @click="settingsStore.patchSettings({ theme: settingsStore.settings.theme === 'system' ? 'light' : settingsStore.settings.theme === 'light' ? 'dark' : 'system' })" />
-      <van-cell>
-        <template #title>
-          <div class="setting-cell-head">
-            <span>字号</span>
-            <span class="font-size-value" :style="{ fontSize: `${fontSize}px` }">{{ fontSize }}px</span>
-          </div>
-        </template>
-        <template #label>
-          <div class="font-slider-wrap">
-            <span class="font-slider-label">小</span>
-            <input v-model="fontSize" class="font-range" type="range" min="14" max="24" step="1" />
-            <span class="font-slider-label">大</span>
-          </div>
-        </template>
-      </van-cell>
-    </van-cell-group>
+    <div class="settings-sections">
+      <section class="settings-section">
+        <p class="settings-section__title">阅读体验</p>
+        <van-cell-group inset>
+          <van-cell title="主题模式" :value="themeLabel" is-link @click="settingsStore.patchSettings({ theme: settingsStore.settings.theme === 'system' ? 'light' : settingsStore.settings.theme === 'light' ? 'dark' : 'system' })" />
+          <van-cell>
+            <template #title>
+              <div class="setting-cell-head">
+                <span>字号</span>
+                <span class="font-size-value" :style="{ fontSize: `${fontSize}px` }">{{ fontSize }}px</span>
+              </div>
+            </template>
+            <template #label>
+              <div class="font-slider-wrap">
+                <span class="font-slider-label">小</span>
+                <input v-model="fontSize" class="font-range" type="range" min="14" max="24" step="1" />
+                <span class="font-slider-label">大</span>
+              </div>
+            </template>
+          </van-cell>
+        </van-cell-group>
+      </section>
 
-    <van-cell-group inset title="AI 设置">
-      <van-cell title="摘要模型" :value="summaryProviderLabel" is-link @click="cycleSummaryProvider" />
-      <van-cell title="摘要长度" :value="summaryLengthLabel" is-link @click="cycleSummaryLength" />
-    </van-cell-group>
+      <section class="settings-section">
+        <p class="settings-section__title">AI 设置</p>
+        <van-cell-group inset>
+          <van-cell title="摘要模型" :value="summaryProviderLabel" is-link @click="cycleSummaryProvider" />
+          <van-cell title="摘要长度" :value="summaryLengthLabel" is-link @click="cycleSummaryLength" />
+        </van-cell-group>
+      </section>
 
-    <van-cell-group inset title="数据管理">
-      <van-cell title="导出 OPML">
-        <template #label>
-          <span class="import-file-text" @click="downloadOpml">导出 OPML</span>
-        </template>
-      </van-cell>
-      <van-cell title="导入 OPML">
-        <template #label>
-          <label class="import-file-text import-file-text--picker">
-            <span>{{ importingOpml ? `正在导入 ${importProgress}/${importTotal}` : '选择 OPML 文件' }}</span>
-            <input class="file-input file-input--overlay" type="file" accept=".opml,.OPML,.xml,.XML,text/xml,application/xml,text/x-opml,application/octet-stream" @change="importOpml" />
-          </label>
-        </template>
-      </van-cell>
-    </van-cell-group>
+      <section class="settings-section">
+        <p class="settings-section__title">数据管理</p>
+        <van-cell-group inset>
+          <van-cell title="导出 OPML">
+            <template #label>
+              <span class="import-file-text" @click="downloadOpml">导出 OPML</span>
+            </template>
+          </van-cell>
+          <van-cell title="导入 OPML">
+            <template #label>
+              <label class="import-file-text import-file-text--picker">
+                <span>{{ importingOpml ? `正在导入 ${importProgress}/${importTotal}` : '选择 OPML 文件' }}</span>
+                <input class="file-input file-input--overlay" type="file" accept=".opml,.OPML,.xml,.XML,text/xml,application/xml,text/x-opml,application/octet-stream" @change="importOpml" />
+              </label>
+            </template>
+          </van-cell>
+        </van-cell-group>
+      </section>
+    </div>
   </section>
 </template>
