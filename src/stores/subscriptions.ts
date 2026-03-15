@@ -17,6 +17,15 @@ export const useSubscriptionStore = defineStore('subscriptions', {
     loading: false
   }),
   actions: {
+    async markRefreshFailure(subscription: SubscriptionRecord, message: string) {
+      const now = new Date().toISOString()
+      await this.update({
+        ...subscription,
+        lastError: message,
+        lastFetchedAt: now,
+        updatedAt: now
+      })
+    },
     async load() {
       this.loading = true
       try {
@@ -44,9 +53,15 @@ export const useSubscriptionStore = defineStore('subscriptions', {
     async refreshOne(subscriptionId: string, workerBaseUrl: string): Promise<number> {
       const subscription = this.items.find((item) => item.id === subscriptionId)
       if (!subscription) return 0
-      const inserted = await refreshSubscription(subscription, workerBaseUrl)
-      await this.load()
-      return inserted
+
+      try {
+        const inserted = await refreshSubscription(subscription, workerBaseUrl)
+        await this.load()
+        return inserted
+      } catch (error) {
+        await this.markRefreshFailure(subscription, error instanceof Error ? error.message : '刷新失败')
+        throw error
+      }
     },
     async refreshAll(
       workerBaseUrl: string,
@@ -79,11 +94,13 @@ export const useSubscriptionStore = defineStore('subscriptions', {
               status: 'success'
             })
           } catch (error) {
+            const message = error instanceof Error ? error.message : '刷新失败'
             summary.failureCount += 1
             summary.failures.push({
               subscriptionId: subscription.id,
-              message: error instanceof Error ? error.message : '刷新失败'
+              message
             })
+            await this.markRefreshFailure(subscription, message)
             completed += 1
             onProgress?.({
               completed,

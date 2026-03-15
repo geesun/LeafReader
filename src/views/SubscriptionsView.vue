@@ -568,6 +568,7 @@ onBeforeUnmount(() => {
           @click="handleCardClick(subscription.id)"
         >
           <div class="feed-icon-card__badge" v-if="articleCounts.unreadMap[subscription.id]">{{ articleCounts.unreadMap[subscription.id] }}</div>
+          <div class="feed-icon-card__status feed-icon-card__status--error" v-if="subscription.lastError" :title="subscription.lastError">!</div>
           <div class="feed-icon-card__avatar feed-icon-card__avatar--image">
             <img
               v-if="getSubscriptionIconUrl(subscription)"

@@ -682,6 +682,26 @@ a {
   font-weight: 700;
 }
 
+.feed-icon-card__status {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.feed-icon-card__status--error {
+  background: #ffe1df;
+  color: #b13b34;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #b13b34 16%, transparent);
+}
+
 .stack-card__header {
   display: flex;
   align-items: flex-start;

@@ -96,6 +96,13 @@ watch(filter, (value) => {
 async function refreshAll() {
   refreshing.value = true
   try {
+    if (selectedSubscriptionId.value) {
+      const inserted = await subscriptionStore.refreshOne(selectedSubscriptionId.value, DEFAULT_WORKER_BASE_URL)
+      await articleStore.loadAll()
+      showToast(`刷新完成，新增 ${inserted} 篇文章`)
+      return
+    }
+
     const summary = await subscriptionStore.refreshAll(DEFAULT_WORKER_BASE_URL)
     await articleStore.loadAll()
 
