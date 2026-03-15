@@ -5,6 +5,7 @@ import type { ArticleRecord, SubscriptionRecord } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
 import { createId } from '@/utils/id'
 import { extractLeadImageFromHtml } from '@/utils/text'
+import { buildSubscriptionIconCandidates, shouldUseTextOnlySubscriptionIcon } from '@/utils/url'
 
 const MAX_ARTICLE_COUNT = 500
 
@@ -28,6 +29,8 @@ export async function createSubscriptionFromUrl(
     title: parsed.title,
     feedUrl,
     siteUrl: parsed.link,
+    iconUrl: buildSubscriptionIconCandidates(parsed.link, feedUrl)[0],
+    iconLookupFailed: shouldUseTextOnlySubscriptionIcon(parsed.link, feedUrl),
     description: parsed.description,
     createdAt: now,
     updatedAt: now,
@@ -46,10 +49,16 @@ export async function refreshSubscription(subscription: SubscriptionRecord, work
   const parsed = parseFeedXml(xml)
   const inserted = await upsertFeedItems(subscription.id, parsed.items, workerBaseUrl)
   const db = await getDb()
+  const nextIconUrl = buildSubscriptionIconCandidates(parsed.link || subscription.siteUrl, subscription.feedUrl)[0] || subscription.iconUrl
+  const iconChanged = nextIconUrl !== subscription.iconUrl
+  const textOnlyIcon = shouldUseTextOnlySubscriptionIcon(parsed.link || subscription.siteUrl, subscription.feedUrl)
   await db.put('subscriptions', {
     ...subscription,
     title: parsed.title || subscription.title,
     siteUrl: parsed.link || subscription.siteUrl,
+    iconUrl: nextIconUrl,
+    ...(iconChanged ? { cachedIconDataUrl: undefined } : {}),
+    iconLookupFailed: textOnlyIcon ? true : iconChanged ? false : subscription.iconLookupFailed,
     description: parsed.description || subscription.description,
     updatedAt: new Date().toISOString(),
     lastFetchedAt: new Date().toISOString(),

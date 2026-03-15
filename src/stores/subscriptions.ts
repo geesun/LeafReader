@@ -31,6 +31,16 @@ export const useSubscriptionStore = defineStore('subscriptions', {
       const subscription = await createSubscriptionFromUrl(feedUrl, workerBaseUrl)
       this.items.unshift(subscription)
     },
+    async update(subscription: SubscriptionRecord) {
+      const db = await getDb()
+      await db.put('subscriptions', subscription)
+      const index = this.items.findIndex((item) => item.id === subscription.id)
+      if (index >= 0) {
+        this.items.splice(index, 1, subscription)
+      } else {
+        this.items.unshift(subscription)
+      }
+    },
     async refreshOne(subscriptionId: string, workerBaseUrl: string): Promise<number> {
       const subscription = this.items.find((item) => item.id === subscriptionId)
       if (!subscription) return 0

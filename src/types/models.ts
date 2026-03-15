@@ -4,6 +4,8 @@ export interface SubscriptionRecord {
   feedUrl: string
   siteUrl?: string
   iconUrl?: string
+  cachedIconDataUrl?: string
+  iconLookupFailed?: boolean
   description?: string
   createdAt: string
   updatedAt: string

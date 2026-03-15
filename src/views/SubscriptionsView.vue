@@ -4,7 +4,10 @@ import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
+import { createWorkerUrl } from '@/services/workerClient'
 import { getArticleSortTimestamp } from '@/utils/articleTime'
+import type { SubscriptionRecord } from '@/types/models'
+import { buildSubscriptionIconCandidates, shouldUseTextOnlySubscriptionIcon } from '@/utils/url'
 import { useArticleStore } from '@/stores/articles'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useUiStore } from '@/stores/ui'
@@ -28,6 +31,9 @@ const refreshTotal = ref(0)
 const refreshCurrentTitle = ref('')
 const movedDuringPress = ref(false)
 const pressedSubscriptionId = ref('')
+const iconAttemptMap = ref<Record<string, number>>({})
+const iconPersistingMap = ref<Record<string, boolean>>({})
+const iconReadyMap = ref<Record<string, boolean>>({})
 
 let pressTimer: number | undefined
 let activePressId: string | undefined
@@ -63,6 +69,24 @@ const sortedSubscriptions = computed(() => {
   })
 })
 
+const latestArticleUrlMap = computed<Record<string, string>>(() => {
+  const next: Record<string, { url: string; timestamp: number }> = {}
+
+  for (const article of articleStore.items) {
+    const timestamp = getArticleSortTimestamp(article)
+    const current = next[article.subscriptionId]
+
+    if (!current || timestamp > current.timestamp) {
+      next[article.subscriptionId] = {
+        url: article.link,
+        timestamp
+      }
+    }
+  }
+
+  return Object.fromEntries(Object.entries(next).map(([subscriptionId, item]) => [subscriptionId, item.url]))
+})
+
 const hasSelection = computed(() => selectedIds.value.length > 0)
 const allSelected = computed(() => selectedIds.value.length > 0 && selectedIds.value.length === sortedSubscriptions.value.length)
 const refreshMessage = computed(() => {
@@ -89,12 +113,181 @@ function getSubscriptionInitial(title: string): string {
   return clean.slice(0, 1).toUpperCase() || 'R'
 }
 
-function getFaviconUrl(feedUrl: string, siteUrl?: string): string {
-  try {
-    const target = new URL(siteUrl || feedUrl)
-    return `${target.origin}/favicon.ico`
-  } catch {
+function getSubscriptionIconCandidates(subscription: SubscriptionRecord): string[] {
+  return buildSubscriptionIconCandidates(
+    subscription.iconUrl,
+    subscription.siteUrl,
+    latestArticleUrlMap.value[subscription.id],
+    subscription.feedUrl
+  )
+}
+
+function getSubscriptionIconUrl(subscription: SubscriptionRecord): string {
+  if (
+    shouldUseTextOnlySubscriptionIcon(
+      subscription.siteUrl,
+      latestArticleUrlMap.value[subscription.id],
+      subscription.feedUrl
+    )
+  ) {
     return ''
+  }
+
+  if (subscription.cachedIconDataUrl) {
+    return subscription.cachedIconDataUrl
+  }
+
+  if (subscription.iconLookupFailed) {
+    return ''
+  }
+
+  const candidates = getSubscriptionIconCandidates(subscription)
+  const attempt = iconAttemptMap.value[subscription.id] ?? 0
+  const candidate = candidates[attempt]
+
+  if (!candidate) return ''
+  return createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', candidate)
+}
+
+function isSubscriptionIconReady(subscription: SubscriptionRecord): boolean {
+  return Boolean(iconReadyMap.value[subscription.id])
+}
+
+async function persistLoadedIcon(subscription: SubscriptionRecord, imageUrl: string) {
+  if (!imageUrl || imageUrl.startsWith('data:') || subscription.cachedIconDataUrl || iconPersistingMap.value[subscription.id]) {
+    return
+  }
+
+  iconPersistingMap.value = {
+    ...iconPersistingMap.value,
+    [subscription.id]: true
+  }
+
+  try {
+    const response = await fetch(imageUrl)
+    if (!response.ok) return
+
+    const blob = await response.blob()
+    if (!blob.type.startsWith('image/')) return
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result)
+          return
+        }
+
+        reject(new Error('icon read failed'))
+      }
+      reader.onerror = () => reject(reader.error ?? new Error('icon read failed'))
+      reader.readAsDataURL(blob)
+    })
+
+    await subscriptionStore.update({
+      ...subscription,
+      cachedIconDataUrl: dataUrl,
+      iconLookupFailed: false,
+      updatedAt: subscription.updatedAt
+    })
+  } catch {
+  } finally {
+    iconPersistingMap.value = {
+      ...iconPersistingMap.value,
+      [subscription.id]: false
+    }
+  }
+}
+
+async function prewarmSubscriptionIcon(subscription: SubscriptionRecord) {
+  if (
+    subscription.cachedIconDataUrl ||
+    subscription.iconLookupFailed ||
+    iconPersistingMap.value[subscription.id] ||
+    shouldUseTextOnlySubscriptionIcon(
+      subscription.siteUrl,
+      latestArticleUrlMap.value[subscription.id],
+      subscription.feedUrl
+    )
+  ) {
+    return
+  }
+
+  const candidates = getSubscriptionIconCandidates(subscription)
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', candidate))
+      if (!response.ok) continue
+
+      const blob = await response.blob()
+      if (!blob.type.startsWith('image/')) continue
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result)
+            return
+          }
+
+          reject(new Error('icon read failed'))
+        }
+        reader.onerror = () => reject(reader.error ?? new Error('icon read failed'))
+        reader.readAsDataURL(blob)
+      })
+
+      await subscriptionStore.update({
+        ...subscription,
+        cachedIconDataUrl: dataUrl,
+        iconLookupFailed: false,
+        updatedAt: subscription.updatedAt
+      })
+      return
+    } catch {
+    }
+  }
+
+  await subscriptionStore.update({
+    ...subscription,
+    iconLookupFailed: true,
+    updatedAt: subscription.updatedAt
+  })
+}
+
+function handleIconLoad(subscription: SubscriptionRecord, event: Event) {
+  const image = event.target as HTMLImageElement | null
+  if (image) {
+    iconReadyMap.value = {
+      ...iconReadyMap.value,
+      [subscription.id]: true
+    }
+    void persistLoadedIcon(subscription, image.currentSrc || image.src)
+  }
+}
+
+function handleIconError(subscription: SubscriptionRecord, event: Event) {
+  iconReadyMap.value = {
+    ...iconReadyMap.value,
+    [subscription.id]: false
+  }
+
+  const candidates = getSubscriptionIconCandidates(subscription)
+  const currentAttempt = iconAttemptMap.value[subscription.id] ?? 0
+
+  if (currentAttempt >= candidates.length - 1) {
+    if (!subscription.iconLookupFailed) {
+      void subscriptionStore.update({
+        ...subscription,
+        iconLookupFailed: true,
+        updatedAt: subscription.updatedAt
+      })
+    }
+    return
+  }
+
+  iconAttemptMap.value = {
+    ...iconAttemptMap.value,
+    [subscription.id]: currentAttempt + 1
   }
 }
 
@@ -287,6 +480,10 @@ async function refreshSubscriptions() {
 
 onMounted(async () => {
   await Promise.all([subscriptionStore.load(), articleStore.loadAll()])
+
+  for (const subscription of subscriptionStore.items) {
+    void prewarmSubscriptionIcon(subscription)
+  }
 })
 
 onBeforeUnmount(() => {
@@ -330,9 +527,12 @@ onBeforeUnmount(() => {
           <div class="feed-icon-card__badge" v-if="articleCounts.unreadMap[subscription.id]">{{ articleCounts.unreadMap[subscription.id] }}</div>
           <div class="feed-icon-card__avatar feed-icon-card__avatar--image">
             <img
-              :src="getFaviconUrl(subscription.feedUrl, subscription.siteUrl)"
+              v-if="getSubscriptionIconUrl(subscription)"
+              :src="getSubscriptionIconUrl(subscription)"
               :alt="subscription.title"
-              @error="($event.target as HTMLImageElement).style.display = 'none'"
+              :class="{ 'feed-icon-card__avatar-image--ready': isSubscriptionIconReady(subscription) }"
+              @load="handleIconLoad(subscription, $event)"
+              @error="handleIconError(subscription, $event)"
             />
             <span>{{ getSubscriptionInitial(subscription.title) }}</span>
           </div>
