@@ -332,11 +332,14 @@ a {
 }
 
 .article-swipe-cell {
-  overflow: visible;
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
 }
 
 .article-swipe-cell .van-swipe-cell__wrapper {
-  overflow: visible;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .article-swipe-action {
