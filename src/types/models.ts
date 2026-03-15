@@ -42,6 +42,15 @@ export interface ArticleRecord {
   aiSummaryText?: string
   aiSummaryModel?: string
   aiSummaryGeneratedAt?: string
+  aiTranslationBlocks?: BilingualParagraph[]
+  aiTranslationModel?: string
+  aiTranslationGeneratedAt?: string
+  aiTranslationFormat?: 'paragraph-v1'
+}
+
+export interface BilingualParagraph {
+  translatedText: string
+  sourceText: string
 }
 
 export interface OfflineAssetRecord {
@@ -82,6 +91,24 @@ export interface ArticleSummaryRequest {
   content: string
   length?: SummaryLength
   provider?: SummaryProvider
+}
+
+export interface ArticleTranslationRequest {
+  title: string
+  url: string
+  blocks: TranslationBlockPayload[]
+  provider?: SummaryProvider
+}
+
+export interface ArticleTranslationResult {
+  translatedBlocks: TranslationBlockPayload[]
+  model: string
+  generatedAt: string
+}
+
+export interface TranslationBlockPayload {
+  id: string
+  text: string
 }
 
 export type SummaryLength = 'short' | 'medium' | 'long'

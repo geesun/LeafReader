@@ -2,22 +2,68 @@ import DOMPurify from 'dompurify'
 
 import { getDb } from '@/services/db'
 import { clearOfflineAssets, removeArticleOffline, saveArticleOffline } from '@/services/offlineService'
-import { extractFullText, summarizeArticle } from '@/services/workerClient'
-import type { ArticleRecord, SummaryLength, SummaryProvider } from '@/types/models'
+import { extractFullText, summarizeArticle, translateArticle } from '@/services/workerClient'
+import type { ArticleRecord, BilingualParagraph, SummaryLength, SummaryProvider, TranslationBlockPayload } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
-
-function stripTags(value: string): string {
-  return value.replace(/<[^>]+>/g, ' ')
-}
+import { compactTranslationBlocks, extractParagraphsFromHtml, looksLikeEnglishArticle, splitTextIntoParagraphBlocks, stripHtml } from '@/utils/text'
 
 function normalizeSummarySource(article: ArticleRecord): string {
   const source = article.fullContentHtml || article.offlineContentHtml || article.feedContentHtml || article.contentText || article.summary || ''
 
-  return stripTags(source)
-    .replace(/\u00a0/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return stripHtml(source)
+}
+
+function normalizeTranslationSource(article: ArticleRecord): string {
+  return stripHtml(article.fullContentHtml || article.offlineContentHtml || article.feedContentHtml || article.contentText || article.summary || '')
+}
+
+function getTranslationHtmlSource(article: ArticleRecord): string | undefined {
+  return article.fullContentHtml || article.offlineContentHtml || article.feedContentHtml
+}
+
+export function canTranslateArticle(article: ArticleRecord): boolean {
+  return looksLikeEnglishArticle(normalizeTranslationSource(article))
+}
+
+export function buildTranslationBlocks(article: ArticleRecord): string[] {
+  const htmlSource = getTranslationHtmlSource(article)
+  const htmlParagraphs = extractParagraphsFromHtml(htmlSource)
+
+  if (htmlParagraphs.length) {
+    return compactTranslationBlocks(htmlParagraphs)
+  }
+
+  return compactTranslationBlocks(splitTextIntoParagraphBlocks(normalizeTranslationSource(article)))
+}
+
+function createTranslationPayload(blocks: string[]): TranslationBlockPayload[] {
+  return blocks.map((text, index) => ({
+    id: `block-${index + 1}`,
+    text
+  }))
+}
+
+export function createBilingualParagraphs(
+  sourceBlocks: TranslationBlockPayload[],
+  translatedBlocks: TranslationBlockPayload[]
+): BilingualParagraph[] {
+  const translatedMap = new Map(translatedBlocks.map((block) => [block.id, block.text.trim()]))
+
+  return sourceBlocks.reduce<BilingualParagraph[]>((paragraphs, sourceBlock) => {
+    const sourceText = sourceBlock.text.trim()
+    const translatedText = translatedMap.get(sourceBlock.id)?.trim()
+
+    if (!sourceText || !translatedText) {
+      return paragraphs
+    }
+
+    paragraphs.push({
+      sourceText,
+      translatedText
+    })
+
+    return paragraphs
+  }, [])
 }
 
 export function sanitizeHtml(html?: string): string {
@@ -118,6 +164,55 @@ export async function generateArticleSummary(
     aiSummaryText: result.summaryText,
     aiSummaryModel: result.model,
     aiSummaryGeneratedAt: result.generatedAt,
+    updatedAt: new Date().toISOString()
+  }
+
+  await updateArticle(updated)
+  return updated
+}
+
+export async function generateArticleTranslation(
+  article: ArticleRecord,
+  workerBaseUrl: string,
+  forceRefresh = false,
+  provider: SummaryProvider = 'google'
+): Promise<ArticleRecord> {
+  const hasParagraphTranslation = article.aiTranslationFormat === 'paragraph-v1' && article.aiTranslationBlocks?.length
+
+  if (!forceRefresh && hasParagraphTranslation) {
+    return article
+  }
+
+  if (!canTranslateArticle(article)) {
+    throw new Error('当前文章未检测为英文内容')
+  }
+
+  const blocks = buildTranslationBlocks(article)
+  if (!blocks.length) {
+    throw new Error('当前文章没有可用于翻译的正文内容')
+  }
+
+  const payloadBlocks = createTranslationPayload(blocks)
+
+  const result = await translateArticle(workerBaseUrl, {
+    title: article.title,
+    url: article.link,
+    blocks: payloadBlocks,
+    provider
+  })
+
+  const bilingualBlocks = createBilingualParagraphs(payloadBlocks, result.translatedBlocks)
+
+  if (!bilingualBlocks.length) {
+    throw new Error('AI 未返回可用的翻译结果')
+  }
+
+  const updated: ArticleRecord = {
+    ...article,
+    aiTranslationBlocks: bilingualBlocks,
+    aiTranslationModel: result.model,
+    aiTranslationGeneratedAt: result.generatedAt,
+    aiTranslationFormat: 'paragraph-v1',
     updatedAt: new Date().toISOString()
   }
 

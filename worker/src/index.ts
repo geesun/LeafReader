@@ -12,6 +12,8 @@ const MAX_XML_BYTES = 3 * 1024 * 1024
 const MAX_HTML_BYTES = 5 * 1024 * 1024
 const MAX_ASSET_BYTES = 10 * 1024 * 1024
 const MAX_SUMMARY_CHARS = 24000
+const MAX_TRANSLATION_BLOCKS = 32
+const MAX_TRANSLATION_BLOCK_CHARS = 1600
 
 interface Env {
   GOOGLE_AI_API_KEY?: string
@@ -27,9 +29,28 @@ interface SummaryRequest {
   provider?: 'google' | 'volcengine'
 }
 
+interface TranslationRequest {
+  title?: string
+  url?: string
+  blocks?: Array<{ id?: string; text?: string } | string>
+  lines?: string[]
+  provider?: 'google' | 'volcengine'
+}
+
 interface SummaryResult {
   summaryText: string
   model: string
+}
+
+interface TranslationResult {
+  translatedBlocks: Array<{ id: string; text: string }>
+  translatedLines: string[]
+  model: string
+}
+
+interface TranslationBlock {
+  id: string
+  text: string
 }
 
 function getSummaryLengthInstruction(length: SummaryRequest['length']): string {
@@ -181,6 +202,169 @@ async function summarizeArticle(request: Request, env: Env): Promise<Response> {
   }
 }
 
+async function translateArticle(request: Request, env: Env): Promise<Response> {
+  let payload: TranslationRequest
+
+  try {
+    payload = await request.json<TranslationRequest>()
+  } catch {
+    return json({ error: 'INVALID_JSON', message: 'Request body must be valid JSON' }, 400)
+  }
+
+  const title = payload.title?.trim() || 'Untitled article'
+  const url = payload.url?.trim() || ''
+  const blocks = normalizeTranslationBlocks(payload)
+    .slice(0, MAX_TRANSLATION_BLOCKS)
+
+  if (!blocks.length) {
+    return json({ error: 'EMPTY_CONTENT', message: 'Article blocks are required' }, 400)
+  }
+
+  if (blocks.some((block) => block.text.length > MAX_TRANSLATION_BLOCK_CHARS)) {
+    return json({ error: 'BLOCK_TOO_LARGE', message: 'Article block is too long to translate' }, 400)
+  }
+
+  const prompt = [
+    '请把下面的英文文章按段翻译成自然、准确的简体中文。',
+    '要求：',
+    '1. 必须严格按照输入段落顺序逐段翻译，不能合并、拆分、遗漏。',
+    '2. 只翻译英文正文，不要添加解释、标题、编号或任何额外说明。',
+    '3. 保留专有名词、产品名、数字和引用的准确性。',
+    '4. 输出必须是 JSON 对象，格式为 {"translatedBlocks":[{"id":"block-1","text":"第1段译文"}]}。',
+    '5. 每个 translatedBlocks 项都必须保留输入里的 id，且数量必须与输入 blocks 完全一致。',
+    '',
+    `文章标题：${title}`,
+    url ? `文章链接：${url}` : '',
+    '输入 blocks：',
+    JSON.stringify({ blocks }, null, 0)
+  ].filter(Boolean).join('\n')
+
+  try {
+    const result = await requestTranslationByProvider(prompt, env, payload.provider)
+
+    const inputIds = new Set(blocks.map((block) => block.id))
+    const filteredBlocks = result.translatedBlocks.filter((block) => inputIds.has(block.id))
+
+    if (filteredBlocks.length !== blocks.length) {
+      throw new Error('AI returned mismatched translation block count')
+    }
+
+    return json({
+      translatedBlocks: filteredBlocks,
+      model: result.model,
+      generatedAt: new Date().toISOString()
+    })
+  } catch (error) {
+    return json(
+      {
+        error: 'TRANSLATION_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown translation error'
+      },
+      502
+    )
+  }
+}
+
+function extractJsonObject(text: string): string {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error('AI did not return JSON content')
+  }
+
+  return text.slice(start, end + 1)
+}
+
+function parseTranslationResponse(text: string): string[] {
+  const parsed = JSON.parse(extractJsonObject(text)) as { translatedBlocks?: unknown; translatedLines?: unknown }
+  const translatedBlocks = Array.isArray(parsed.translatedBlocks) ? parsed.translatedBlocks : parsed.translatedLines
+
+  if (!Array.isArray(translatedBlocks)) {
+    throw new Error('AI translation JSON is missing translatedBlocks')
+  }
+
+  const normalized = translatedBlocks.map((block) => {
+    if (typeof block !== 'string') {
+      throw new Error('AI translation block must be a string')
+    }
+
+    return block.trim()
+  })
+
+  if (normalized.some((block) => !block)) {
+    throw new Error('AI translation returned empty block')
+  }
+
+  return normalized
+}
+
+function normalizeTranslationBlocks(payload: TranslationRequest): TranslationBlock[] {
+  const legacyLines = (payload.lines ?? [])
+    .map((line, index) => ({
+      id: `line-${index + 1}`,
+      text: line.replace(/\s+/g, ' ').trim()
+    }))
+    .filter((line) => Boolean(line.text))
+
+  const rawBlocks = payload.blocks
+  if (!rawBlocks?.length) {
+    return legacyLines
+  }
+
+  return rawBlocks
+    .map((block, index) => {
+      if (typeof block === 'string') {
+        return {
+          id: `block-${index + 1}`,
+          text: block.replace(/\s+/g, ' ').trim()
+        }
+      }
+
+      return {
+        id: block.id?.trim() || `block-${index + 1}`,
+        text: block.text?.replace(/\s+/g, ' ').trim() || ''
+      }
+    })
+    .filter((block) => Boolean(block.text))
+}
+
+function parseStructuredTranslationResponse(text: string): TranslationBlock[] {
+  const parsed = JSON.parse(extractJsonObject(text)) as {
+    translatedBlocks?: unknown
+    translatedLines?: unknown
+  }
+
+  if (Array.isArray(parsed.translatedBlocks)) {
+    const structured = parsed.translatedBlocks
+      .map((block) => {
+        if (!block || typeof block !== 'object') {
+          return undefined
+        }
+
+        const candidate = block as { id?: unknown; text?: unknown }
+        const id = typeof candidate.id === 'string' ? candidate.id.trim() : ''
+        const normalizedText = typeof candidate.text === 'string' ? candidate.text.trim() : ''
+
+        if (!id || !normalizedText) {
+          return undefined
+        }
+
+        return { id, text: normalizedText }
+      })
+      .filter((block): block is TranslationBlock => Boolean(block))
+
+    if (structured.length) {
+      return structured
+    }
+  }
+
+  return parseTranslationResponse(text).map((block, index) => ({
+    id: `block-${index + 1}`,
+    text: block
+  }))
+}
+
 async function requestGoogleSummary(prompt: string, env: Env): Promise<SummaryResult> {
   if (!env.GOOGLE_AI_API_KEY) {
     throw new Error('GOOGLE_AI_API_KEY is not configured')
@@ -286,6 +470,121 @@ async function requestVolcengineSummary(prompt: string, env: Env): Promise<Summa
   }
 }
 
+async function requestGoogleTranslation(prompt: string, env: Env): Promise<TranslationResult> {
+  if (!env.GOOGLE_AI_API_KEY) {
+    throw new Error('GOOGLE_AI_API_KEY is not configured')
+  }
+
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-goog-api-key': env.GOOGLE_AI_API_KEY
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json'
+      }
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Gemini request failed: ${response.status}`)
+  }
+
+  const result = await response.json<{
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{ text?: string }>
+      }
+    }>
+  }>()
+
+  const text = result.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('').trim()
+
+  if (!text) {
+    throw new Error('Gemini returned an empty translation')
+  }
+
+  const translatedBlocks = parseStructuredTranslationResponse(text)
+
+  return {
+    translatedBlocks,
+    translatedLines: translatedBlocks.map((block) => block.text),
+    model: 'gemini-flash-latest'
+  }
+}
+
+async function requestVolcengineTranslation(prompt: string, env: Env): Promise<TranslationResult> {
+  if (!env.VOLCENGINE_ARK_API_KEY) {
+    throw new Error('VOLCENGINE_ARK_API_KEY is not configured')
+  }
+
+  const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${env.VOLCENGINE_ARK_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'doubao-lite-32k-character-250228',
+      messages: [
+        {
+          role: 'system',
+          content: '你是专业翻译助手。请严格按要求返回 JSON，保持段落数量和顺序一致。'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 4096,
+      response_format: {
+        type: 'json_object'
+      }
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Volcengine request failed: ${response.status}`)
+  }
+
+  const result = await response.json<{
+    choices?: Array<{
+      message?: {
+        content?: string
+      }
+    }>
+  }>()
+
+  const text = result.choices?.[0]?.message?.content?.trim()
+
+  if (!text) {
+    throw new Error('Volcengine returned an empty translation')
+  }
+
+  const translatedBlocks = parseStructuredTranslationResponse(text)
+
+  return {
+    translatedBlocks,
+    translatedLines: translatedBlocks.map((block) => block.text),
+    model: 'doubao-lite-32k-character-250228'
+  }
+}
+
 async function requestSummaryByProvider(prompt: string, env: Env, providerOverride?: SummaryRequest['provider']): Promise<SummaryResult> {
   const provider = providerOverride?.trim().toLowerCase() || env.AI_SUMMARY_PROVIDER?.trim().toLowerCase() || 'google'
 
@@ -294,6 +593,20 @@ async function requestSummaryByProvider(prompt: string, env: Env, providerOverri
   }
 
   return requestGoogleSummary(prompt, env)
+}
+
+async function requestTranslationByProvider(
+  prompt: string,
+  env: Env,
+  providerOverride?: TranslationRequest['provider']
+): Promise<TranslationResult> {
+  const provider = providerOverride?.trim().toLowerCase() || env.AI_SUMMARY_PROVIDER?.trim().toLowerCase() || 'google'
+
+  if (provider === 'volcengine') {
+    return requestVolcengineTranslation(prompt, env)
+  }
+
+  return requestGoogleTranslation(prompt, env)
 }
 
 async function proxyRequest(targetUrl: URL, maxBytes: number): Promise<Response> {
@@ -368,6 +681,10 @@ export default {
 
     if (request.method === 'POST' && url.pathname === '/summarize') {
       return summarizeArticle(request, env)
+    }
+
+    if (request.method === 'POST' && url.pathname === '/translate') {
+      return translateArticle(request, env)
     }
 
     if (request.method !== 'GET') {

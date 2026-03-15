@@ -1,4 +1,10 @@
-import type { ArticleSummaryRequest, ArticleSummaryResult, FullTextResult } from '@/types/models'
+import type {
+  ArticleSummaryRequest,
+  ArticleSummaryResult,
+  ArticleTranslationRequest,
+  ArticleTranslationResult,
+  FullTextResult
+} from '@/types/models'
 import { normalizeBaseUrl } from '@/utils/url'
 
 function ensureBaseUrl(baseUrl: string): string {
@@ -15,7 +21,7 @@ export function createWorkerUrl(baseUrl: string, path: 'rss' | 'extract' | 'asse
   return `${normalized}/${path}?url=${encodeURIComponent(targetUrl)}`
 }
 
-export function createWorkerEndpointUrl(baseUrl: string, path: 'summarize'): string {
+export function createWorkerEndpointUrl(baseUrl: string, path: 'summarize' | 'translate'): string {
   const normalized = ensureBaseUrl(baseUrl)
   return `${normalized}/${path}`
 }
@@ -71,4 +77,30 @@ export async function summarizeArticle(baseUrl: string, payload: ArticleSummaryR
   }
 
   return response.json() as Promise<ArticleSummaryResult>
+}
+
+export async function translateArticle(baseUrl: string, payload: ArticleTranslationRequest): Promise<ArticleTranslationResult> {
+  const response = await fetch(createWorkerEndpointUrl(baseUrl, 'translate'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+
+  if (!response.ok) {
+    let message = `AI 翻译失败：${response.status}`
+
+    try {
+      const error = await response.json() as { message?: string }
+      if (error.message) {
+        message = error.message
+      }
+    } catch {
+    }
+
+    throw new Error(message)
+  }
+
+  return response.json() as Promise<ArticleTranslationResult>
 }

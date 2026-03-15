@@ -536,6 +536,10 @@ a {
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 72%, white) 0%, var(--bg-elevated) 100%);
 }
 
+.ai-translation-card {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 58%, white) 0%, var(--bg-elevated) 100%);
+}
+
 .ai-summary-card__head {
   display: flex;
   align-items: flex-start;
@@ -561,6 +565,49 @@ a {
   margin: 14px 0 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+.bilingual-blocks {
+  display: grid;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.bilingual-block {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.bilingual-block__pair {
+  padding: 14px 0 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.bilingual-block:last-child .bilingual-block__pair {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.bilingual-block p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bilingual-block__source {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.bilingual-block__translation {
+  margin-top: 8px !important;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.74;
 }
 
 .prose img {

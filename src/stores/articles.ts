@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 
 import {
+  canTranslateArticle,
   clearOfflineLibrary,
   fetchArticleFullText,
+  generateArticleTranslation,
   generateArticleSummary,
   getArticle,
   listArticles,
@@ -75,6 +77,20 @@ export const useArticleStore = defineStore('articles', {
       provider: SummaryProvider = 'google'
     ) {
       const updated = await generateArticleSummary(article, workerBaseUrl, forceRefresh, length, provider)
+      this.current = this.current?.id === updated.id ? updated : this.current
+      this.items = this.items.map((item) => (item.id === updated.id ? updated : item))
+      return updated
+    },
+    canTranslate(article: ArticleRecord) {
+      return canTranslateArticle(article)
+    },
+    async generateTranslation(
+      article: ArticleRecord,
+      workerBaseUrl: string,
+      forceRefresh = false,
+      provider: SummaryProvider = 'google'
+    ) {
+      const updated = await generateArticleTranslation(article, workerBaseUrl, forceRefresh, provider)
       this.current = this.current?.id === updated.id ? updated : this.current
       this.items = this.items.map((item) => (item.id === updated.id ? updated : item))
       return updated

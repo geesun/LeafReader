@@ -30,7 +30,7 @@ let dbPromise: Promise<IDBPDatabase<NeoReaderDB>> | undefined
 
 export function getDb() {
   if (!dbPromise) {
-    dbPromise = openDB<NeoReaderDB>('neoreader-db', 2, {
+    dbPromise = openDB<NeoReaderDB>('neoreader-db', 3, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           const subscriptionStore = db.createObjectStore('subscriptions', { keyPath: 'id' })
