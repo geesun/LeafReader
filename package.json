@@ -11,6 +11,8 @@
     "typecheck": "vue-tsc --noEmit",
     "worker:dev": "wrangler dev worker/src/index.ts --config worker/wrangler.toml",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "rssworker:dev": "wrangler dev rssworker/src/index.ts --config rssworker/wrangler.toml",
+    "rssworker:deploy": "wrangler deploy --config rssworker/wrangler.toml",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "npm run build && npx cap sync android && npx cap open android"
   },
