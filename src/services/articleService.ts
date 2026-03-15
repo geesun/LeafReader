@@ -2,9 +2,23 @@ import DOMPurify from 'dompurify'
 
 import { getDb } from '@/services/db'
 import { clearOfflineAssets, removeArticleOffline, saveArticleOffline } from '@/services/offlineService'
-import { extractFullText } from '@/services/workerClient'
-import type { ArticleRecord } from '@/types/models'
+import { extractFullText, summarizeArticle } from '@/services/workerClient'
+import type { ArticleRecord, SummaryLength, SummaryProvider } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
+
+function stripTags(value: string): string {
+  return value.replace(/<[^>]+>/g, ' ')
+}
+
+function normalizeSummarySource(article: ArticleRecord): string {
+  const source = article.fullContentHtml || article.offlineContentHtml || article.feedContentHtml || article.contentText || article.summary || ''
+
+  return stripTags(source)
+    .replace(/\u00a0/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 export function sanitizeHtml(html?: string): string {
   return DOMPurify.sanitize(html ?? '', {
@@ -68,6 +82,42 @@ export async function fetchArticleFullText(article: ArticleRecord, workerBaseUrl
     contentSource: 'fulltext',
     hasFullContent: true,
     leadImageUrl: fullText.leadImageUrl || article.leadImageUrl,
+    updatedAt: new Date().toISOString()
+  }
+
+  await updateArticle(updated)
+  return updated
+}
+
+export async function generateArticleSummary(
+  article: ArticleRecord,
+  workerBaseUrl: string,
+  forceRefresh = false,
+  length: SummaryLength = 'medium',
+  provider: SummaryProvider = 'google'
+): Promise<ArticleRecord> {
+  if (!forceRefresh && article.aiSummaryText) {
+    return article
+  }
+
+  const content = normalizeSummarySource(article)
+  if (!content) {
+    throw new Error('当前文章没有可用于总结的正文内容')
+  }
+
+  const result = await summarizeArticle(workerBaseUrl, {
+    title: article.title,
+    url: article.link,
+    content,
+    length,
+    provider
+  })
+
+  const updated: ArticleRecord = {
+    ...article,
+    aiSummaryText: result.summaryText,
+    aiSummaryModel: result.model,
+    aiSummaryGeneratedAt: result.generatedAt,
     updatedAt: new Date().toISOString()
   }
 

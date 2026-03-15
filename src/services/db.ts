@@ -30,22 +30,24 @@ let dbPromise: Promise<IDBPDatabase<NeoReaderDB>> | undefined
 
 export function getDb() {
   if (!dbPromise) {
-    dbPromise = openDB<NeoReaderDB>('neoreader-db', 1, {
-      upgrade(db) {
-        const subscriptionStore = db.createObjectStore('subscriptions', { keyPath: 'id' })
-        subscriptionStore.createIndex('by-feed-url', 'feedUrl', { unique: true })
-        subscriptionStore.createIndex('by-updated', 'updatedAt')
+    dbPromise = openDB<NeoReaderDB>('neoreader-db', 2, {
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          const subscriptionStore = db.createObjectStore('subscriptions', { keyPath: 'id' })
+          subscriptionStore.createIndex('by-feed-url', 'feedUrl', { unique: true })
+          subscriptionStore.createIndex('by-updated', 'updatedAt')
 
-        const articleStore = db.createObjectStore('articles', { keyPath: 'id' })
-        articleStore.createIndex('by-subscription', 'subscriptionId')
-        articleStore.createIndex('by-published', 'publishedAt')
-        articleStore.createIndex('by-favorite', 'isFavorite')
-        articleStore.createIndex('by-read', 'isRead')
-        articleStore.createIndex('by-link', 'link')
+          const articleStore = db.createObjectStore('articles', { keyPath: 'id' })
+          articleStore.createIndex('by-subscription', 'subscriptionId')
+          articleStore.createIndex('by-published', 'publishedAt')
+          articleStore.createIndex('by-favorite', 'isFavorite')
+          articleStore.createIndex('by-read', 'isRead')
+          articleStore.createIndex('by-link', 'link')
 
-        const offlineStore = db.createObjectStore('offline_assets', { keyPath: 'id' })
-        offlineStore.createIndex('by-article', 'articleId')
-        offlineStore.createIndex('by-local-path', 'localPath', { unique: true })
+          const offlineStore = db.createObjectStore('offline_assets', { keyPath: 'id' })
+          offlineStore.createIndex('by-article', 'articleId')
+          offlineStore.createIndex('by-local-path', 'localPath', { unique: true })
+        }
       }
     })
   }

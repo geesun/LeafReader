@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import {
   clearOfflineLibrary,
   fetchArticleFullText,
+  generateArticleSummary,
   getArticle,
   listArticles,
   listFavoriteArticles,
@@ -13,7 +14,7 @@ import {
   saveArticleWithOfflineAssets,
   toggleFavorite
 } from '@/services/articleService'
-import type { ArticleRecord } from '@/types/models'
+import type { ArticleRecord, SummaryLength, SummaryProvider } from '@/types/models'
 
 export const useArticleStore = defineStore('articles', {
   state: () => ({
@@ -63,6 +64,18 @@ export const useArticleStore = defineStore('articles', {
     async saveOffline(article: ArticleRecord, workerBaseUrl: string) {
       const updated = await saveArticleWithOfflineAssets(article, workerBaseUrl)
       this.current = updated
+      this.items = this.items.map((item) => (item.id === updated.id ? updated : item))
+      return updated
+    },
+    async generateSummary(
+      article: ArticleRecord,
+      workerBaseUrl: string,
+      forceRefresh = false,
+      length: SummaryLength = 'medium',
+      provider: SummaryProvider = 'google'
+    ) {
+      const updated = await generateArticleSummary(article, workerBaseUrl, forceRefresh, length, provider)
+      this.current = this.current?.id === updated.id ? updated : this.current
       this.items = this.items.map((item) => (item.id === updated.id ? updated : item))
       return updated
     },

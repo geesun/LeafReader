@@ -6,6 +6,7 @@ import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { exportSubscriptionsToOpml, parseOpml } from '@/services/opmlService'
 import { useSettingsStore } from '@/stores/settings'
 import { useSubscriptionStore } from '@/stores/subscriptions'
+import type { SummaryLength, SummaryProvider } from '@/types/models'
 
 const settingsStore = useSettingsStore()
 const subscriptionStore = useSubscriptionStore()
@@ -14,6 +15,36 @@ const fontSize = ref(settingsStore.settings.fontSize)
 const importingOpml = ref(false)
 const importProgress = ref(0)
 const importTotal = ref(0)
+
+const summaryLengthLabel = computed(() => {
+  if (settingsStore.settings.summaryLength === 'short') return '简短'
+  if (settingsStore.settings.summaryLength === 'long') return '详细'
+  return '标准'
+})
+
+const summaryProviderLabel = computed(() => {
+  if (settingsStore.settings.summaryProvider === 'volcengine') return '火山方舟'
+  return 'Google Gemini'
+})
+
+function cycleSummaryLength() {
+  const next: Record<SummaryLength, SummaryLength> = {
+    short: 'medium',
+    medium: 'long',
+    long: 'short'
+  }
+
+  settingsStore.patchSettings({ summaryLength: next[settingsStore.settings.summaryLength] })
+}
+
+function cycleSummaryProvider() {
+  const next: Record<SummaryProvider, SummaryProvider> = {
+    google: 'volcengine',
+    volcengine: 'google'
+  }
+
+  settingsStore.patchSettings({ summaryProvider: next[settingsStore.settings.summaryProvider] })
+}
 
 onMounted(async () => {
   await subscriptionStore.load()
@@ -141,6 +172,11 @@ async function importOpml(event: Event) {
           </div>
         </template>
       </van-cell>
+    </van-cell-group>
+
+    <van-cell-group inset title="AI 设置">
+      <van-cell title="摘要模型" :value="summaryProviderLabel" is-link @click="cycleSummaryProvider" />
+      <van-cell title="摘要长度" :value="summaryLengthLabel" is-link @click="cycleSummaryLength" />
     </van-cell-group>
 
     <van-cell-group inset title="数据管理">

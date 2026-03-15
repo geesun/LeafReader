@@ -11,6 +11,50 @@ const PRIVATE_HOSTS = ['localhost', '127.0.0.1']
 const MAX_XML_BYTES = 3 * 1024 * 1024
 const MAX_HTML_BYTES = 5 * 1024 * 1024
 const MAX_ASSET_BYTES = 10 * 1024 * 1024
+const MAX_SUMMARY_CHARS = 24000
+
+interface Env {
+  GOOGLE_AI_API_KEY?: string
+  AI_SUMMARY_PROVIDER?: string
+  VOLCENGINE_ARK_API_KEY?: string
+}
+
+interface SummaryRequest {
+  title?: string
+  url?: string
+  content?: string
+  length?: 'short' | 'medium' | 'long'
+  provider?: 'google' | 'volcengine'
+}
+
+interface SummaryResult {
+  summaryText: string
+  model: string
+}
+
+function getSummaryLengthInstruction(length: SummaryRequest['length']): string {
+  if (length === 'short') {
+    return '1. 输出控制在 120 到 180 个汉字左右，内容要完整，不要过短。'
+  }
+
+  if (length === 'long') {
+    return '1. 输出控制在 320 到 420 个汉字左右，信息要充分，不能只写几句空泛概括。'
+  }
+
+  return '1. 输出控制在 220 到 320 个汉字左右，信息要完整，不能明显短于 200 字。'
+}
+
+function getSummaryCompressionInstruction(length: SummaryRequest['length']): string {
+  if (length === 'short') {
+    return '如果初稿偏长，可以压缩，但仍需保留背景、事实和结论，不能只剩一句话。'
+  }
+
+  if (length === 'long') {
+    return '可以稍微展开背景和结论，但仍然保持紧凑，不要写成长文。'
+  }
+
+  return '如果初稿偏长，请压缩到标准摘要长度；如果过短，请补足关键背景和结论。'
+}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -84,6 +128,174 @@ function normalizeContentUrls(html: string, baseUrl: string): { html: string; le
   }
 }
 
+async function summarizeArticle(request: Request, env: Env): Promise<Response> {
+  let payload: SummaryRequest
+
+  try {
+    payload = await request.json<SummaryRequest>()
+  } catch {
+    return json({ error: 'INVALID_JSON', message: 'Request body must be valid JSON' }, 400)
+  }
+
+  const title = payload.title?.trim() || '未命名文章'
+  const url = payload.url?.trim() || ''
+  const content = payload.content?.replace(/\s+/g, ' ').trim() || ''
+  const length = payload.length ?? 'medium'
+
+  if (!content) {
+    return json({ error: 'EMPTY_CONTENT', message: 'Article content is required' }, 400)
+  }
+
+  const prompt = [
+    '请你用简体中文为下面这篇文章写一段适合阅读器展示的摘要。',
+    '要求：',
+    getSummaryLengthInstruction(length),
+    '2. 忠于原文，不要编造没有出现的信息。',
+    '3. 优先提炼背景、核心事实、关键观点和结论。',
+    '4. 不要写“本文主要讲了”“以下是摘要”这类套话。',
+    '5. 只返回纯文本摘要，不要 Markdown，不要标题。',
+    `6. ${getSummaryCompressionInstruction(length)}`,
+    '',
+    `文章标题：${title}`,
+    url ? `文章链接：${url}` : '',
+    '文章正文：',
+    content.slice(0, MAX_SUMMARY_CHARS)
+  ].filter(Boolean).join('\n')
+
+  try {
+    const result = await requestSummaryByProvider(prompt, env, payload.provider)
+
+    return json({
+      summaryText: result.summaryText,
+      model: result.model,
+      generatedAt: new Date().toISOString()
+    })
+  } catch (error) {
+    return json(
+      {
+        error: 'SUMMARY_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown summary error'
+      },
+      502
+    )
+  }
+}
+
+async function requestGoogleSummary(prompt: string, env: Env): Promise<SummaryResult> {
+  if (!env.GOOGLE_AI_API_KEY) {
+    throw new Error('GOOGLE_AI_API_KEY is not configured')
+  }
+
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-goog-api-key': env.GOOGLE_AI_API_KEY
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.3
+      }
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Gemini request failed: ${response.status}`)
+  }
+
+  const result = await response.json<{
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{ text?: string }>
+      }
+    }>
+  }>()
+
+  const summaryText = result.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('').trim()
+
+  if (!summaryText) {
+    throw new Error('Gemini returned an empty summary')
+  }
+
+  return {
+    summaryText,
+    model: 'gemini-flash-latest'
+  }
+}
+
+async function requestVolcengineSummary(prompt: string, env: Env): Promise<SummaryResult> {
+  if (!env.VOLCENGINE_ARK_API_KEY) {
+    throw new Error('VOLCENGINE_ARK_API_KEY is not configured')
+  }
+
+  const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${env.VOLCENGINE_ARK_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'doubao-lite-32k-character-250228',
+      messages: [
+        {
+          role: 'system',
+          content: '你是人工智能助手。请输出忠于原文、简洁清晰的中文摘要。'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 384
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Volcengine request failed: ${response.status}`)
+  }
+
+  const result = await response.json<{
+    choices?: Array<{
+      message?: {
+        content?: string
+      }
+    }>
+  }>()
+
+  const summaryText = result.choices?.[0]?.message?.content?.trim()
+
+  if (!summaryText) {
+    throw new Error('Volcengine returned an empty summary')
+  }
+
+  return {
+    summaryText,
+    model: 'doubao-lite-32k-character-250228'
+  }
+}
+
+async function requestSummaryByProvider(prompt: string, env: Env, providerOverride?: SummaryRequest['provider']): Promise<SummaryResult> {
+  const provider = providerOverride?.trim().toLowerCase() || env.AI_SUMMARY_PROVIDER?.trim().toLowerCase() || 'google'
+
+  if (provider === 'volcengine') {
+    return requestVolcengineSummary(prompt, env)
+  }
+
+  return requestGoogleSummary(prompt, env)
+}
+
 async function proxyRequest(targetUrl: URL, maxBytes: number): Promise<Response> {
   const response = await fetch(targetUrl.toString(), {
     redirect: 'follow',
@@ -145,18 +357,22 @@ async function extractArticle(targetUrl: URL): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: CORS_HEADERS
       })
     }
 
+    const url = new URL(request.url)
+
+    if (request.method === 'POST' && url.pathname === '/summarize') {
+      return summarizeArticle(request, env)
+    }
+
     if (request.method !== 'GET') {
       return json({ error: 'METHOD_NOT_ALLOWED' }, 405)
     }
-
-    const url = new URL(request.url)
 
     try {
       if (url.pathname === '/rss') {

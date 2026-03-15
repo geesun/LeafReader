@@ -532,6 +532,37 @@ a {
   line-height: 1.8;
 }
 
+.ai-summary-card {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 72%, white) 0%, var(--bg-elevated) 100%);
+}
+
+.ai-summary-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-summary-card__head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.ai-summary-card__text {
+  margin: 14px 0 0;
+  color: var(--text);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ai-summary-card__meta {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .prose img {
   max-width: 100%;
   height: auto;

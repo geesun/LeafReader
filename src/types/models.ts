@@ -39,6 +39,9 @@ export interface ArticleRecord {
   isOfflineSaved: boolean
   offlineSavedAt?: string
   leadImageUrl?: string
+  aiSummaryText?: string
+  aiSummaryModel?: string
+  aiSummaryGeneratedAt?: string
 }
 
 export interface OfflineAssetRecord {
@@ -66,6 +69,23 @@ export interface FullTextResult {
   textContent?: string
   leadImageUrl?: string
 }
+
+export interface ArticleSummaryResult {
+  summaryText: string
+  model: string
+  generatedAt: string
+}
+
+export interface ArticleSummaryRequest {
+  title: string
+  url: string
+  content: string
+  length?: SummaryLength
+  provider?: SummaryProvider
+}
+
+export type SummaryLength = 'short' | 'medium' | 'long'
+export type SummaryProvider = 'google' | 'volcengine'
 
 export interface RefreshSummary {
   inserted: number
@@ -95,4 +115,6 @@ export interface ParsedFeedItem {
 export interface AppSettings {
   theme: 'system' | 'light' | 'dark'
   fontSize: number
+  summaryLength: SummaryLength
+  summaryProvider: SummaryProvider
 }

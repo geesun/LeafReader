@@ -5,5 +5,7 @@ export const DEFAULT_WORKER_BASE_URL = 'https://neoreader-worker.qixiang-xu.work
 
 export const defaultSettings: AppSettings = {
   theme: 'system',
-  fontSize: 16
+  fontSize: 16,
+  summaryLength: 'medium',
+  summaryProvider: 'google'
 }
