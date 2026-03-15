@@ -144,20 +144,21 @@ watch(
 </script>
 
 <template>
-  <section class="page page--article">
-    <button class="article-back-btn" @click="router.back()">
-      <van-icon name="arrow-left" />
-    </button>
-
+  <section class="page page--article page--sticky-header">
     <template v-if="article">
-      <header class="article-header">
-        <h1>{{ article.title }}</h1>
-        <div class="article-subline article-subline--actions">
-          <span>{{ article.author || '未知作者' }}</span>
-          <span class="article-subline__sep">·</span>
-          <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
-
-          <div class="toolbar toolbar--header-inline">
+      <header class="page-header page-header--sticky page-header--stacked page-header--sticky-tall article-page-header">
+        <div class="page-header__mainline article-page-header__mainline">
+          <van-button class="page-header__icon" round plain icon="arrow-left" @click="router.back()" />
+          <div class="page-header__center article-page-header__title-wrap">
+            <h1>{{ article.title }}</h1>
+          </div>
+        </div>
+        <div class="article-page-header__subline">
+          <div class="article-subline article-subline--header-meta">
+            <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
+          </div>
+          <div class="toolbar toolbar--header-inline article-page-header__actions">
+            <van-button size="small" round plain @click="toggleRead">{{ article.isRead ? '标未读' : '标已读' }}</van-button>
             <van-button size="small" round plain :loading="summaryLoading" @click="generateSummary(false)">
               {{ hasSummary ? (summaryVisible ? '隐藏摘要' : '显示摘要') : 'AI 摘要' }}
             </van-button>
@@ -171,7 +172,6 @@ watch(
             >
               {{ hasTranslation ? (translationVisible ? '隐藏对照' : '显示对照') : '中英对照' }}
             </van-button>
-            <van-button size="small" round plain @click="toggleRead">{{ article.isRead ? '标未读' : '标已读' }}</van-button>
             <van-button size="small" round plain @click="toggleFavorite">{{ article.isFavorite ? '取消收藏' : '收藏' }}</van-button>
           </div>
         </div>

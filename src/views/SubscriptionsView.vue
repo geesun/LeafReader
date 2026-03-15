@@ -296,8 +296,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="page page--subscriptions">
-    <header class="page-header page-header--aligned">
+  <section class="page page--subscriptions page--sticky-header">
+    <header class="page-header page-header--aligned page-header--sticky">
       <div>
         <p class="eyebrow">Feeds</p>
         <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }}</h1>

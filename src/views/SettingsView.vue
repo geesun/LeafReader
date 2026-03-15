@@ -147,8 +147,8 @@ async function importOpml(event: Event) {
 </script>
 
 <template>
-  <section class="page">
-    <header class="page-header">
+  <section class="page page--sticky-header">
+    <header class="page-header page-header--sticky">
       <div>
         <p class="eyebrow">Config</p>
         <h1>设置</h1>

@@ -3,10 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 
+import ArticleListItem from '@/components/ArticleListItem.vue'
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { formatRelativeDate } from '@/utils/date'
 import { compareArticlesByRecency, getArticleDisplayDate } from '@/utils/articleTime'
-import { limitText } from '@/utils/text'
 import { useArticleStore } from '@/stores/articles'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 
@@ -138,6 +138,11 @@ async function clearSubscriptionFilter() {
   })
 }
 
+async function markArticleReadFromList(article: (typeof filteredArticles.value)[number]) {
+  if (article.isRead) return
+  await articleStore.setRead(article, true)
+}
+
 async function setFilter(next: 'all' | 'unread' | 'favorites') {
   filter.value = next
 
@@ -250,61 +255,57 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="page" @click.capture="handlePageTapCapture" @touchstart.capture="handlePageTapCapture">
-    <header class="page-header page-header--aligned">
-      <van-button class="page-header__icon" round plain icon="search" @click="openSearch" />
-      <button ref="titleTriggerRef" class="page-header__center page-header__center-btn" @click="toggleFilterPanel">
-        <h1>{{ readingTitle }}</h1>
-      </button>
-      <van-button class="page-header__icon" round plain icon="checked" @click="confirmMarkVisibleRead" />
-    </header>
-
-    <p class="reading-status">{{ filterLabel }}</p>
-
-    <template v-if="$route.name === 'reading' && showFilterPanel">
-      <div ref="filterPanelRef" class="reading-panel">
-        <div class="reading-filters">
-          <button class="reading-chip" :class="{ 'reading-chip--active': filter === 'all' }" @click="setFilter('all')">全部</button>
-          <button class="reading-chip" :class="{ 'reading-chip--active': filter === 'unread' }" @click="setFilter('unread')">未读</button>
-          <button class="reading-chip" :class="{ 'reading-chip--active': filter === 'favorites' }" @click="setFilter('favorites')">收藏</button>
-        </div>
-
-        <div class="subscription-select-wrap">
-          <select :value="selectedSubscriptionId" class="subscription-select" @change="updateSubscriptionFilter(($event.target as HTMLSelectElement).value)">
-            <option value="">全部订阅</option>
-            <option v-for="item in subscriptionStore.items" :key="item.id" :value="item.id">{{ item.title }}</option>
-          </select>
-        </div>
+  <section
+    class="page page--sticky-header"
+    :class="{ 'page--sticky-header-expanded': $route.name === 'reading' && showFilterPanel }"
+    @click.capture="handlePageTapCapture"
+    @touchstart.capture="handlePageTapCapture"
+  >
+    <header class="page-header page-header--aligned page-header--sticky page-header--stacked page-header--sticky-tall">
+      <div class="page-header__mainline">
+        <van-button class="page-header__icon" round plain icon="search" @click="openSearch" />
+        <button ref="titleTriggerRef" class="page-header__center page-header__center-btn" @click="toggleFilterPanel">
+          <div class="page-header__title-stack">
+            <h1>{{ readingTitle }}</h1>
+            <p class="reading-status reading-status--title">{{ filterLabel }}</p>
+          </div>
+        </button>
+        <van-button class="page-header__icon" round plain icon="checked" @click="confirmMarkVisibleRead" />
       </div>
-    </template>
+
+      <template v-if="$route.name === 'reading' && showFilterPanel">
+        <div ref="filterPanelRef" class="reading-panel reading-panel--header">
+          <div class="reading-filters">
+            <button class="reading-chip" :class="{ 'reading-chip--active': filter === 'all' }" @click="setFilter('all')">全部</button>
+            <button class="reading-chip" :class="{ 'reading-chip--active': filter === 'unread' }" @click="setFilter('unread')">未读</button>
+            <button class="reading-chip" :class="{ 'reading-chip--active': filter === 'favorites' }" @click="setFilter('favorites')">收藏</button>
+          </div>
+
+          <div class="subscription-select-wrap">
+            <select :value="selectedSubscriptionId" class="subscription-select" @change="updateSubscriptionFilter(($event.target as HTMLSelectElement).value)">
+              <option value="">全部订阅</option>
+              <option v-for="item in subscriptionStore.items" :key="item.id" :value="item.id">{{ item.title }}</option>
+            </select>
+          </div>
+        </div>
+      </template>
+    </header>
 
     <van-pull-refresh v-model="refreshing" @refresh="refreshAll">
       <div v-if="filteredArticles.length" class="article-list">
-        <button
+        <ArticleListItem
           v-for="article in filteredArticles"
           :key="article.id"
-          class="article-card"
-          :class="{
-            'article-card--read': article.isRead,
-            'article-card--pressed': pressedArticleId === article.id
-          }"
-          @touchstart="pressedArticleId = article.id"
-          @touchend="clearPressedArticle"
-          @touchcancel="clearPressedArticle"
-          @mousedown="pressedArticleId = article.id"
-          @mouseup="clearPressedArticle"
-          @mouseleave="clearPressedArticle"
-          @click="openArticle(article)"
-        >
-          <div class="article-card__meta">
-            <span>{{ subscriptionsById[article.subscriptionId] || '未知订阅' }}</span>
-            <span>{{ formatRelativeDate(getArticleDisplayDate(article)) }}</span>
-            <span v-if="article.isFavorite">已收藏</span>
-            <span v-if="article.hasFullContent">全文</span>
-          </div>
-          <h3>{{ article.title }}</h3>
-          <p>{{ limitText(article.contentText || article.summary || '', 96) }}</p>
-        </button>
+          :article="article"
+          :pressed="pressedArticleId === article.id"
+          :meta-primary="subscriptionsById[article.subscriptionId] || '未知订阅'"
+          :meta-secondary="formatRelativeDate(getArticleDisplayDate(article))"
+          :meta-tags="[...(article.isFavorite ? ['已收藏'] : []), ...(article.hasFullContent ? ['全文'] : [])]"
+          @pressstart="pressedArticleId = $event"
+          @pressend="clearPressedArticle"
+          @open="openArticle"
+          @markread="markArticleReadFromList"
+        />
       </div>
 
       <van-empty v-else description="当前筛选下没有文章" />
