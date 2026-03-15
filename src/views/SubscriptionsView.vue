@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Clipboard } from '@capacitor/clipboard'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
@@ -101,11 +102,53 @@ watch(hasSelection, (value) => {
 function openAddPopup() {
   feedUrl.value = ''
   showAddPopup.value = true
+  void hydrateFeedUrlFromClipboard()
 }
 
 function closeAddPopup() {
   showAddPopup.value = false
   feedUrl.value = ''
+}
+
+function extractUrlFromText(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  const firstLine = trimmed.split(/\s+/)[0] ?? ''
+  try {
+    const url = new URL(firstLine)
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return url.toString()
+    }
+  } catch {
+  }
+
+  return ''
+}
+
+async function hydrateFeedUrlFromClipboard() {
+  if (feedUrl.value) return
+
+  try {
+    const nativeClipboard = await Clipboard.read()
+    const nativeUrl = extractUrlFromText(nativeClipboard.value)
+    if (nativeUrl) {
+      feedUrl.value = nativeUrl
+      return
+    }
+  } catch {
+  }
+
+  try {
+    if (!navigator.clipboard?.readText) return
+
+    const browserClipboard = await navigator.clipboard.readText()
+    const browserUrl = extractUrlFromText(browserClipboard)
+    if (browserUrl) {
+      feedUrl.value = browserUrl
+    }
+  } catch {
+  }
 }
 
 function getSubscriptionInitial(title: string): string {
