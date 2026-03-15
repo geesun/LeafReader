@@ -95,6 +95,27 @@ export function extractParagraphsFromHtml(html?: string): string[] {
   return splitTextIntoParagraphBlocks(text)
 }
 
+export function extractLeadImageFromHtml(html?: string, baseUrl?: string): string | undefined {
+  if (!html) return undefined
+
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+  const image = doc.querySelector('img')
+  const src = image?.getAttribute('src')?.trim()
+
+  if (!src) return undefined
+
+  if (!baseUrl) {
+    return src
+  }
+
+  try {
+    return new URL(src, baseUrl).toString()
+  } catch {
+    return src
+  }
+}
+
 export function compactTranslationBlocks(
   inputBlocks: string[],
   minBlockLength = 220,

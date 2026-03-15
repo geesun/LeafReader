@@ -4,6 +4,7 @@ import { parseFeedXml } from '@/services/feedParser'
 import type { ArticleRecord, SubscriptionRecord } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
 import { createId } from '@/utils/id'
+import { extractLeadImageFromHtml } from '@/utils/text'
 
 const MAX_ARTICLE_COUNT = 500
 
@@ -88,7 +89,8 @@ async function upsertFeedItems(
       isRead: false,
       isFavorite: false,
       hasFullContent: false,
-      isOfflineSaved: false
+      isOfflineSaved: false,
+      leadImageUrl: extractLeadImageFromHtml(item.contentHtml, item.link)
     }
 
     try {
