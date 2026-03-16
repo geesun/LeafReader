@@ -25,6 +25,9 @@ const emit = defineEmits<{
 }>()
 
 const swipeCellRef = ref<{ close: (position?: string) => void } | null>(null)
+const isSwiping = ref(false)
+const swipeDirection = ref<'left' | 'right' | null>(null)
+let touchStartX = 0
 const imageLoadFailed = ref(false)
 const previewText = computed(() => limitText(props.article.contentText || props.article.summary || '', 90))
 const rawLeadImageUrl = computed(() => {
@@ -58,19 +61,52 @@ function handleSwipeOpen(event: { position?: string }) {
   swipeCellRef.value?.close('outside')
 }
 
+function handleTouchStart(e: TouchEvent) {
+  if (!props.article.isRead) {
+    touchStartX = e.touches[0].clientX
+    isSwiping.value = true
+    swipeDirection.value = null
+  }
+}
+
+function handleTouchMove(e: TouchEvent) {
+  if (!isSwiping.value) return
+  const dx = e.touches[0].clientX - touchStartX
+  if (swipeDirection.value === null && Math.abs(dx) > 40) {
+    swipeDirection.value = dx < 0 ? 'left' : 'right'
+  }
+}
+
+function handleTouchEnd() {
+  isSwiping.value = false
+  swipeDirection.value = null
+}
+
 function handleImageError() {
   imageLoadFailed.value = true
 }
 </script>
 
 <template>
-  <SwipeCell ref="swipeCellRef" class="article-swipe-cell" :right-width="92" :left-width="92" @open="handleSwipeOpen">
+  <SwipeCell
+    ref="swipeCellRef"
+    class="article-swipe-cell"
+    :class="{ 'article-swipe-cell--open': isSwiping }"
+    :right-width="92"
+    :left-width="92"
+    :disabled="article.isRead"
+    @open="handleSwipeOpen"
+    @touchstart.passive="handleTouchStart"
+    @touchmove.passive="handleTouchMove"
+    @touchend.passive="handleTouchEnd"
+    @touchcancel.passive="handleTouchEnd"
+  >
     <template #left>
-      <div class="article-swipe-action article-swipe-action--read" @click="handleMarkRead">标已读</div>
+      <div v-if="swipeDirection === 'right'" class="article-swipe-action article-swipe-action--read" @click="handleMarkRead">标已读</div>
     </template>
 
     <template #right>
-      <div class="article-swipe-action article-swipe-action--read" @click="handleMarkRead">标已读</div>
+      <div v-if="swipeDirection === 'left'" class="article-swipe-action article-swipe-action--read" @click="handleMarkRead">标已读</div>
     </template>
 
     <button

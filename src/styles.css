@@ -344,14 +344,25 @@ a {
   margin-top: 16px;
 }
 
+.van-pull-refresh {
+  overflow: visible !important;
+}
+
+.van-pull-refresh__head {
+  overflow: hidden;
+}
+
 .article-swipe-cell {
   position: relative;
   overflow: hidden;
   border-radius: 22px;
 }
 
+.article-swipe-cell--open {
+  overflow: visible !important;
+}
+
 .article-swipe-cell .van-swipe-cell__wrapper {
-  overflow: hidden;
   border-radius: inherit;
 }
 
