@@ -89,7 +89,12 @@ const latestArticleUrlMap = computed<Record<string, string>>(() => {
 })
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
+const hasSingleSelection = computed(() => selectedIds.value.length === 1)
 const allSelected = computed(() => selectedIds.value.length > 0 && selectedIds.value.length === sortedSubscriptions.value.length)
+const selectedSubscription = computed(() => {
+  if (!hasSingleSelection.value) return undefined
+  return subscriptionStore.items.find((item) => item.id === selectedIds.value[0])
+})
 const refreshMessage = computed(() => {
   if (!refreshing.value || !refreshTotal.value) return ''
   return `正在刷新 ${refreshCompleted.value}/${refreshTotal.value}：${refreshCurrentTitle.value}`
@@ -490,6 +495,35 @@ async function markSelectedRead() {
   showToast('所选订阅文章已标记为已读')
 }
 
+async function copySelectedFeedUrl() {
+  const feedUrl = selectedSubscription.value?.feedUrl?.trim()
+  if (!feedUrl) {
+    showToast('未找到订阅地址')
+    return
+  }
+
+  try {
+    await Clipboard.write({ string: feedUrl })
+    showToast('源地址已复制')
+    return
+  } catch (error) {
+    console.error('Clipboard.write failed', error)
+  }
+
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard unavailable')
+    }
+
+    await navigator.clipboard.writeText(feedUrl)
+    showToast('源地址已复制')
+  } catch (error) {
+    console.error('navigator.clipboard.writeText failed', error)
+    const message = error instanceof Error ? error.message : '复制失败'
+    showToast(message)
+  }
+}
+
 async function refreshSubscriptions() {
   if (subscriptionStore.sourceUpdateInProgress) {
     showToast('当前正在更新订阅源，请稍候')
@@ -547,6 +581,14 @@ onBeforeUnmount(() => {
         <p class="eyebrow">Feeds</p>
         <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }}</h1>
       </div>
+      <van-button
+        v-if="hasSingleSelection"
+        class="page-header__icon"
+        round
+        plain
+        icon="link-o"
+        @click="copySelectedFeedUrl"
+      />
       <van-button v-if="!hasSelection" class="page-header__icon" round plain icon="plus" @click="openAddPopup" />
     </header>
 
