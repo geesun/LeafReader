@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Clipboard } from '@capacitor/clipboard'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
@@ -100,6 +101,35 @@ async function generateTranslation(forceRefresh = false) {
     showToast(error instanceof Error ? error.message : '翻译生成失败')
   } finally {
     translationLoading.value = false
+  }
+}
+
+async function copyArticleUrl() {
+  const link = article.value?.link?.trim()
+  if (!link) {
+    showToast('未找到文章地址')
+    return
+  }
+
+  try {
+    await Clipboard.write({ string: link })
+    showToast('文章地址已复制')
+    return
+  } catch (error) {
+    console.error('Clipboard.write failed', error)
+  }
+
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard unavailable')
+    }
+
+    await navigator.clipboard.writeText(link)
+    showToast('文章地址已复制')
+  } catch (error) {
+    console.error('navigator.clipboard.writeText failed', error)
+    const message = error instanceof Error ? error.message : '复制失败'
+    showToast(message)
   }
 }
 
@@ -218,8 +248,20 @@ watch(
 
       <article class="reader-surface prose" v-html="articleHtml" />
 
-      <div class="page-footer-actions">
-        <a class="article-link-button" :href="article.link" target="_blank" rel="noopener noreferrer">打开原文</a>
+      <div class="page-footer-actions article-page-footer-actions">
+        <van-button class="article-link-button" round plain block @click="copyArticleUrl">复制地址</van-button>
+        <van-button
+          class="article-link-button"
+          round
+          plain
+          block
+          tag="a"
+          :href="article.link"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          打开原文
+        </van-button>
       </div>
     </template>
 
