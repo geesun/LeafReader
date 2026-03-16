@@ -491,6 +491,11 @@ async function markSelectedRead() {
 }
 
 async function refreshSubscriptions() {
+  if (subscriptionStore.sourceUpdateInProgress) {
+    showToast('当前正在更新订阅源，请稍候')
+    return
+  }
+
   refreshing.value = true
   refreshCompleted.value = 0
   refreshTotal.value = subscriptionStore.items.length
@@ -499,7 +504,7 @@ async function refreshSubscriptions() {
   try {
     const summary = await subscriptionStore.refreshAll(
       DEFAULT_WORKER_BASE_URL,
-      3,
+      1,
       ({ completed, total, title }) => {
         refreshCompleted.value = completed
         refreshTotal.value = total

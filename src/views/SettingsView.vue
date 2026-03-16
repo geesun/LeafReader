@@ -102,6 +102,12 @@ async function importOpml(event: Event) {
   const file = target.files?.[0]
   if (!file) return
 
+  if (subscriptionStore.sourceUpdateInProgress) {
+    target.value = ''
+    showToast('当前正在更新订阅源，请稍候')
+    return
+  }
+
   importingOpml.value = true
   importProgress.value = 0
   importTotal.value = 0
@@ -126,23 +132,23 @@ async function importOpml(event: Event) {
   }
 
   importTotal.value = feeds.length
-  let count = 0
+  try {
+    const count = await subscriptionStore.importMany(
+      feeds.map((item) => item.feedUrl),
+      DEFAULT_WORKER_BASE_URL,
+      ({ completed, total }) => {
+        importProgress.value = completed
+        importTotal.value = total
+      }
+    )
 
-  for (const item of feeds) {
-    try {
-      await subscriptionStore.add(item.feedUrl, DEFAULT_WORKER_BASE_URL)
-      count += 1
-    } catch {
-      // ignore duplicates or invalid feeds while keeping progress
-    }
-
-    importProgress.value += 1
+    showToast(count > 0 ? `导入完成，新增 ${count} 个订阅` : '导入完成，没有新增订阅')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '导入失败')
+  } finally {
+    importingOpml.value = false
+    target.value = ''
   }
-
-  await subscriptionStore.load()
-  importingOpml.value = false
-  target.value = ''
-  showToast(count > 0 ? `导入完成，新增 ${count} 个订阅` : '导入完成，没有新增订阅')
 }
 </script>
 

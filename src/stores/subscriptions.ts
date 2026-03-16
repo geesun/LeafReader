@@ -11,12 +11,33 @@ interface RefreshProgress {
   status: 'success' | 'failure'
 }
 
+interface ImportProgress {
+  completed: number
+  total: number
+}
+
 export const useSubscriptionStore = defineStore('subscriptions', {
   state: () => ({
     items: [] as SubscriptionRecord[],
-    loading: false
+    loading: false,
+    sourceUpdateInProgress: false
   }),
   actions: {
+    ensureSourceUpdateIdle() {
+      if (this.sourceUpdateInProgress) {
+        throw new Error('当前正在更新订阅源，请稍候')
+      }
+    },
+    async runWithSourceUpdateLock<T>(task: () => Promise<T>): Promise<T> {
+      this.ensureSourceUpdateIdle()
+      this.sourceUpdateInProgress = true
+
+      try {
+        return await task()
+      } finally {
+        this.sourceUpdateInProgress = false
+      }
+    },
     async markRefreshFailure(subscription: SubscriptionRecord, message: string) {
       const now = new Date().toISOString()
       await this.update({
@@ -36,9 +57,40 @@ export const useSubscriptionStore = defineStore('subscriptions', {
         this.loading = false
       }
     },
-    async add(feedUrl: string, workerBaseUrl: string) {
-      const subscription = await createSubscriptionFromUrl(feedUrl, workerBaseUrl)
-      this.items.unshift(subscription)
+    async add(feedUrl: string, workerBaseUrl: string, skipLock = false) {
+      const execute = async () => {
+        const subscription = await createSubscriptionFromUrl(feedUrl, workerBaseUrl)
+        this.items.unshift(subscription)
+        return subscription
+      }
+
+      if (skipLock) {
+        return execute()
+      }
+
+      return this.runWithSourceUpdateLock(execute)
+    },
+    async importMany(feedUrls: string[], workerBaseUrl: string, onProgress?: (progress: ImportProgress) => void): Promise<number> {
+      return this.runWithSourceUpdateLock(async () => {
+        let count = 0
+        let completed = 0
+        const total = feedUrls.length
+
+        for (const feedUrl of feedUrls) {
+          try {
+            await this.add(feedUrl, workerBaseUrl, true)
+            count += 1
+          } catch {
+            // ignore duplicates or invalid feeds while keeping progress
+          }
+
+          completed += 1
+          onProgress?.({ completed, total })
+        }
+
+        await this.load()
+        return count
+      })
     },
     async update(subscription: SubscriptionRecord) {
       const db = await getDb()
@@ -51,71 +103,75 @@ export const useSubscriptionStore = defineStore('subscriptions', {
       }
     },
     async refreshOne(subscriptionId: string, workerBaseUrl: string): Promise<number> {
-      const subscription = this.items.find((item) => item.id === subscriptionId)
-      if (!subscription) return 0
+      return this.runWithSourceUpdateLock(async () => {
+        const subscription = this.items.find((item) => item.id === subscriptionId)
+        if (!subscription) return 0
 
-      try {
-        const inserted = await refreshSubscription(subscription, workerBaseUrl)
-        await this.load()
-        return inserted
-      } catch (error) {
-        await this.markRefreshFailure(subscription, error instanceof Error ? error.message : '刷新失败')
-        throw error
-      }
+        try {
+          const inserted = await refreshSubscription(subscription, workerBaseUrl)
+          await this.load()
+          return inserted
+        } catch (error) {
+          await this.markRefreshFailure(subscription, error instanceof Error ? error.message : '刷新失败')
+          throw error
+        }
+      })
     },
     async refreshAll(
       workerBaseUrl: string,
-      concurrency = 3,
+      concurrency = 1,
       onProgress?: (progress: RefreshProgress) => void
     ): Promise<RefreshSummary> {
-      const queue = [...this.items]
-      const total = queue.length
-      let completed = 0
-      const summary: RefreshSummary = {
-        inserted: 0,
-        successCount: 0,
-        failureCount: 0,
-        failures: []
-      }
+      return this.runWithSourceUpdateLock(async () => {
+        const queue = [...this.items]
+        const total = queue.length
+        let completed = 0
+        const summary: RefreshSummary = {
+          inserted: 0,
+          successCount: 0,
+          failureCount: 0,
+          failures: []
+        }
 
-      const worker = async () => {
-        while (queue.length) {
-          const subscription = queue.shift()
-          if (!subscription) return
+        const worker = async () => {
+          while (queue.length) {
+            const subscription = queue.shift()
+            if (!subscription) return
 
-          try {
-            summary.inserted += await refreshSubscription(subscription, workerBaseUrl)
-            summary.successCount += 1
-            completed += 1
-            onProgress?.({
-              completed,
-              total,
-              title: subscription.title,
-              status: 'success'
-            })
-          } catch (error) {
-            const message = error instanceof Error ? error.message : '刷新失败'
-            summary.failureCount += 1
-            summary.failures.push({
-              subscriptionId: subscription.id,
-              message
-            })
-            await this.markRefreshFailure(subscription, message)
-            completed += 1
-            onProgress?.({
-              completed,
-              total,
-              title: subscription.title,
-              status: 'failure'
-            })
+            try {
+              summary.inserted += await refreshSubscription(subscription, workerBaseUrl)
+              summary.successCount += 1
+              completed += 1
+              onProgress?.({
+                completed,
+                total,
+                title: subscription.title,
+                status: 'success'
+              })
+            } catch (error) {
+              const message = error instanceof Error ? error.message : '刷新失败'
+              summary.failureCount += 1
+              summary.failures.push({
+                subscriptionId: subscription.id,
+                message
+              })
+              await this.markRefreshFailure(subscription, message)
+              completed += 1
+              onProgress?.({
+                completed,
+                total,
+                title: subscription.title,
+                status: 'failure'
+              })
+            }
           }
         }
-      }
 
-      const workers = Array.from({ length: Math.min(concurrency, Math.max(queue.length, 1)) }, () => worker())
-      await Promise.all(workers)
-      await this.load()
-      return summary
+        const workers = Array.from({ length: Math.min(concurrency, Math.max(queue.length, 1)) }, () => worker())
+        await Promise.all(workers)
+        await this.load()
+        return summary
+      })
     },
     async remove(subscriptionId: string) {
       const db = await getDb()

@@ -94,6 +94,11 @@ watch(filter, (value) => {
 })
 
 async function refreshAll() {
+  if (subscriptionStore.sourceUpdateInProgress) {
+    showToast('当前正在更新订阅源，请稍候')
+    return
+  }
+
   refreshing.value = true
   try {
     if (selectedSubscriptionId.value) {
