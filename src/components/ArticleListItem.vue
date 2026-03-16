@@ -63,7 +63,7 @@ function handleSwipeOpen(event: { position?: string }) {
 
 function handleTouchStart(e: TouchEvent) {
   if (!props.article.isRead) {
-    touchStartX = e.touches[0].clientX
+    touchStartX = e.touches[0]?.clientX ?? 0
     isSwiping.value = true
     swipeDirection.value = null
   }
@@ -71,7 +71,7 @@ function handleTouchStart(e: TouchEvent) {
 
 function handleTouchMove(e: TouchEvent) {
   if (!isSwiping.value) return
-  const dx = e.touches[0].clientX - touchStartX
+  const dx = (e.touches[0]?.clientX ?? touchStartX) - touchStartX
   if (swipeDirection.value === null && Math.abs(dx) > 40) {
     swipeDirection.value = dx < 0 ? 'left' : 'right'
   }
