@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
       </template>
     </header>
 
-    <van-pull-refresh v-model="refreshing" @refresh="refreshAll">
+    <van-pull-refresh v-model="refreshing" :pull-distance="150" @refresh="refreshAll">
       <div v-if="filteredArticles.length" class="article-list">
         <ArticleListItem
           v-for="article in filteredArticles"

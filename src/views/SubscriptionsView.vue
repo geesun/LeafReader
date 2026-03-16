@@ -594,7 +594,7 @@ onBeforeUnmount(() => {
 
     <van-notice-bar v-if="refreshMessage" left-icon="replay" :text="refreshMessage" />
 
-    <van-pull-refresh v-model="refreshing" @refresh="refreshSubscriptions">
+    <van-pull-refresh v-model="refreshing" :pull-distance="150" @refresh="refreshSubscriptions">
       <div v-if="sortedSubscriptions.length" class="feed-grid">
         <button
           v-for="subscription in sortedSubscriptions"
