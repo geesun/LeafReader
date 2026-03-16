@@ -22,9 +22,13 @@ export const useArticleStore = defineStore('articles', {
   state: () => ({
     items: [] as ArticleRecord[],
     current: undefined as ArticleRecord | undefined,
-    loading: false
+    loading: false,
+    readingList: [] as string[]   // ordered article ids from the current list context
   }),
   actions: {
+    setReadingList(ids: string[]) {
+      this.readingList = ids
+    },
     async loadAll() {
       this.loading = true
       try {

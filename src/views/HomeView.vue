@@ -131,6 +131,8 @@ async function openArticle(article: (typeof filteredArticles.value)[number]) {
   try {
     await new Promise((resolve) => window.setTimeout(resolve, 110))
 
+    articleStore.setReadingList(filteredArticles.value.map((a) => a.id))
+
     if (!article.isRead) {
       await articleStore.setRead(article, true)
     }

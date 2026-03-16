@@ -12,6 +12,7 @@ const router = useRouter()
 const keyword = ref('')
 
 async function openArticle(article: (typeof results.value)[number]) {
+  articleStore.setReadingList(results.value.map((a) => a.id))
   await router.push({ name: 'article', params: { id: article.id } })
 }
 

@@ -22,6 +22,53 @@ const translationLoading = ref(false)
 const summaryVisible = ref(false)
 const translationVisible = ref(false)
 
+// swipe to navigate between articles in the reading list
+let swipeTouchStartX = 0
+let swipeTouchStartY = 0
+let swipeAxisLocked = false
+
+const currentIndex = computed(() => {
+  const id = article.value?.id
+  if (!id || !articleStore.readingList.length) return -1
+  return articleStore.readingList.indexOf(id)
+})
+
+const prevId = computed(() =>
+  currentIndex.value > 0 ? articleStore.readingList[currentIndex.value - 1] : null
+)
+
+const nextId = computed(() =>
+  currentIndex.value >= 0 && currentIndex.value < articleStore.readingList.length - 1
+    ? articleStore.readingList[currentIndex.value + 1]
+    : null
+)
+
+function onSwipeTouchStart(e: TouchEvent) {
+  swipeTouchStartX = e.touches[0]?.clientX ?? 0
+  swipeTouchStartY = e.touches[0]?.clientY ?? 0
+  swipeAxisLocked = false
+}
+
+function onSwipeTouchEnd(e: TouchEvent) {
+  const endX = e.changedTouches[0]?.clientX ?? swipeTouchStartX
+  const endY = e.changedTouches[0]?.clientY ?? swipeTouchStartY
+  const dx = endX - swipeTouchStartX
+  const dy = endY - swipeTouchStartY
+
+  // ignore if primarily vertical scroll
+  if (Math.abs(dy) > Math.abs(dx)) return
+  // require at least 60px horizontal swipe
+  if (Math.abs(dx) < 60) return
+
+  if (dx < 0 && nextId.value) {
+    // swipe left → next article
+    router.replace({ name: 'article', params: { id: nextId.value } })
+  } else if (dx > 0 && prevId.value) {
+    // swipe right → previous article
+    router.replace({ name: 'article', params: { id: prevId.value } })
+  }
+}
+
 const article = computed(() => articleStore.current)
 const hasSummary = computed(() => Boolean(article.value?.aiSummaryText))
 const hasTranslation = computed(() => Boolean(article.value?.aiTranslationFormat === 'paragraph-v1' && article.value?.aiTranslationBlocks?.length))
@@ -174,7 +221,11 @@ watch(
 </script>
 
 <template>
-  <section class="page page--article page--sticky-header">
+  <section
+    class="page page--article page--sticky-header"
+    @touchstart.passive="onSwipeTouchStart"
+    @touchend.passive="onSwipeTouchEnd"
+  >
     <template v-if="article">
       <header class="page-header page-header--sticky page-header--stacked page-header--sticky-tall article-page-header">
         <div class="page-header__mainline article-page-header__mainline">
