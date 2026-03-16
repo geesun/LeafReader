@@ -99,7 +99,7 @@ a {
 }
 
 .page--article.page--sticky-header {
-  padding-top: calc(132px + env(safe-area-inset-top));
+  padding-top: calc(var(--article-header-height, 132px) + 16px + env(safe-area-inset-top));
 }
 
 .page--article {
@@ -834,7 +834,7 @@ a {
   }
 
   .page--article.page--sticky-header {
-    padding-top: calc(144px + env(safe-area-inset-top));
+    padding-top: calc(var(--article-header-height, 144px) + 16px + env(safe-area-inset-top));
   }
 
   .article-card__hero {

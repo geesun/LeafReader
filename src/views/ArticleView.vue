@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Clipboard } from '@capacitor/clipboard'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 
@@ -21,6 +21,27 @@ const summaryLoading = ref(false)
 const translationLoading = ref(false)
 const summaryVisible = ref(false)
 const translationVisible = ref(false)
+const headerRef = ref<HTMLElement | null>(null)
+
+// dynamically track header height so content is never covered
+let headerResizeObserver: ResizeObserver | null = null
+
+function updateHeaderOffset() {
+  const h = headerRef.value?.offsetHeight
+  if (h) {
+    document.documentElement.style.setProperty('--article-header-height', `${h}px`)
+  }
+}
+
+onMounted(() => {
+  headerResizeObserver = new ResizeObserver(updateHeaderOffset)
+  if (headerRef.value) headerResizeObserver.observe(headerRef.value)
+})
+
+onBeforeUnmount(() => {
+  headerResizeObserver?.disconnect()
+  document.documentElement.style.removeProperty('--article-header-height')
+})
 
 // swipe to navigate between articles in the reading list
 let swipeTouchStartX = 0
@@ -227,7 +248,7 @@ watch(
     @touchend.passive="onSwipeTouchEnd"
   >
     <template v-if="article">
-      <header class="page-header page-header--sticky page-header--stacked page-header--sticky-tall article-page-header">
+      <header ref="headerRef" class="page-header page-header--sticky page-header--stacked page-header--sticky-tall article-page-header">
         <div class="page-header__mainline article-page-header__mainline">
           <van-button class="page-header__icon" round plain icon="arrow-left" @click="router.back()" />
           <div class="page-header__center article-page-header__title-wrap">
