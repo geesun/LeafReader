@@ -6,7 +6,7 @@ export function normalizeTimestamp(value?: string): string | undefined {
   const parsed = Date.parse(value)
   if (Number.isNaN(parsed)) return undefined
 
-  return new Date(parsed).toISOString()
+  return new Date(Math.min(parsed, Date.now())).toISOString()
 }
 
 export function getArticleSortTimestamp(article: Pick<ArticleRecord, 'publishedAt' | 'createdAt'>): number {
