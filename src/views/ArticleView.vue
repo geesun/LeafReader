@@ -81,6 +81,14 @@ function onSwipeTouchEnd(e: TouchEvent) {
   // require at least 60px horizontal swipe
   if (Math.abs(dx) < 60) return
 
+  // Ignore swipes that start near the left or right screen edge (≤ 30 px).
+  // Those are reserved for the OS/browser back-gesture and must not be
+  // intercepted — otherwise the back swipe would also navigate to the
+  // previous article before the router pops back to the list.
+  const edgeThreshold = 30
+  const screenWidth = window.innerWidth
+  if (swipeTouchStartX <= edgeThreshold || swipeTouchStartX >= screenWidth - edgeThreshold) return
+
   if (dx < 0 && nextId.value) {
     // swipe left → next article
     router.replace({ name: 'article', params: { id: nextId.value } })
