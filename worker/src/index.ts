@@ -19,6 +19,7 @@ interface Env {
   GOOGLE_AI_API_KEY?: string
   AI_SUMMARY_PROVIDER?: string
   VOLCENGINE_ARK_API_KEY?: string
+  GITHUB_COPILOT_API_KEY?: string
 }
 
 interface SummaryRequest {
@@ -26,7 +27,7 @@ interface SummaryRequest {
   url?: string
   content?: string
   length?: 'short' | 'medium' | 'long'
-  provider?: 'google' | 'volcengine'
+  provider?: 'google' | 'volcengine' | 'github'
 }
 
 interface TranslationRequest {
@@ -34,7 +35,7 @@ interface TranslationRequest {
   url?: string
   blocks?: Array<{ id?: string; text?: string } | string>
   lines?: string[]
-  provider?: 'google' | 'volcengine'
+  provider?: 'google' | 'volcengine' | 'github'
 }
 
 interface SummaryResult {
@@ -470,7 +471,120 @@ async function requestVolcengineSummary(prompt: string, env: Env): Promise<Summa
   }
 }
 
-async function requestGoogleTranslation(prompt: string, env: Env): Promise<TranslationResult> {
+async function requestGithubSummary(prompt: string, env: Env): Promise<SummaryResult> {
+  if (!env.GITHUB_COPILOT_API_KEY) {
+    throw new Error('GITHUB_COPILOT_API_KEY is not configured')
+  }
+
+  const response = await fetch('https://api.githubcopilot.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.GITHUB_COPILOT_API_KEY}`,
+      'Editor-Version': 'vscode/1.85.0',
+      'User-Agent': 'GitHubCopilot/1.0'
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: '你是人工智能助手。请输出忠于原文、简洁清晰的中文摘要。'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `GitHub Copilot request failed: ${response.status}`)
+  }
+
+  const result = await response.json<{
+    choices?: Array<{
+      message?: {
+        content?: string
+      }
+    }>
+    model?: string
+  }>()
+
+  const summaryText = result.choices?.[0]?.message?.content?.trim()
+
+  if (!summaryText) {
+    throw new Error('GitHub Copilot returned an empty summary')
+  }
+
+  return {
+    summaryText,
+    model: result.model ?? 'gpt-4o'
+  }
+}
+
+async function requestGithubTranslation(prompt: string, env: Env): Promise<TranslationResult> {
+  if (!env.GITHUB_COPILOT_API_KEY) {
+    throw new Error('GITHUB_COPILOT_API_KEY is not configured')
+  }
+
+  const response = await fetch('https://api.githubcopilot.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.GITHUB_COPILOT_API_KEY}`,
+      'Editor-Version': 'vscode/1.85.0',
+      'User-Agent': 'GitHubCopilot/1.0'
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: '你是专业翻译助手。请严格按要求返回 JSON，保持段落数量和顺序一致。'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.2
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `GitHub Copilot request failed: ${response.status}`)
+  }
+
+  const result = await response.json<{
+    choices?: Array<{
+      message?: {
+        content?: string
+      }
+    }>
+    model?: string
+  }>()
+
+  const text = result.choices?.[0]?.message?.content?.trim()
+
+  if (!text) {
+    throw new Error('GitHub Copilot returned an empty translation')
+  }
+
+  const translatedBlocks = parseStructuredTranslationResponse(text)
+
+  return {
+    translatedBlocks,
+    translatedLines: translatedBlocks.map((block) => block.text),
+    model: result.model ?? 'gpt-4o'
+  }
+}
+
+
   if (!env.GOOGLE_AI_API_KEY) {
     throw new Error('GOOGLE_AI_API_KEY is not configured')
   }
@@ -586,13 +700,17 @@ async function requestVolcengineTranslation(prompt: string, env: Env): Promise<T
 }
 
 async function requestSummaryByProvider(prompt: string, env: Env, providerOverride?: SummaryRequest['provider']): Promise<SummaryResult> {
-  const provider = providerOverride?.trim().toLowerCase() || env.AI_SUMMARY_PROVIDER?.trim().toLowerCase() || 'google'
+  const provider = providerOverride?.trim().toLowerCase() || env.AI_SUMMARY_PROVIDER?.trim().toLowerCase() || 'github'
 
   if (provider === 'volcengine') {
     return requestVolcengineSummary(prompt, env)
   }
 
-  return requestGoogleSummary(prompt, env)
+  if (provider === 'google') {
+    return requestGoogleSummary(prompt, env)
+  }
+
+  return requestGithubSummary(prompt, env)
 }
 
 async function requestTranslationByProvider(
@@ -600,13 +718,17 @@ async function requestTranslationByProvider(
   env: Env,
   providerOverride?: TranslationRequest['provider']
 ): Promise<TranslationResult> {
-  const provider = providerOverride?.trim().toLowerCase() || env.AI_SUMMARY_PROVIDER?.trim().toLowerCase() || 'google'
+  const provider = providerOverride?.trim().toLowerCase() || env.AI_SUMMARY_PROVIDER?.trim().toLowerCase() || 'github'
 
   if (provider === 'volcengine') {
     return requestVolcengineTranslation(prompt, env)
   }
 
-  return requestGoogleTranslation(prompt, env)
+  if (provider === 'google') {
+    return requestGoogleTranslation(prompt, env)
+  }
+
+  return requestGithubTranslation(prompt, env)
 }
 
 async function proxyRequest(targetUrl: URL, maxBytes: number): Promise<Response> {

@@ -7,5 +7,5 @@ export const defaultSettings: AppSettings = {
   theme: 'system',
   fontSize: 16,
   summaryLength: 'medium',
-  summaryProvider: 'google'
+  summaryProvider: 'github'
 }

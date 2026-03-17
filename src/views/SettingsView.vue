@@ -24,8 +24,19 @@ const summaryLengthLabel = computed(() => {
 
 const summaryProviderLabel = computed(() => {
   if (settingsStore.settings.summaryProvider === 'volcengine') return '火山方舟'
+  if (settingsStore.settings.summaryProvider === 'github') return 'GitHub Copilot'
   return 'Google Gemini'
 })
+
+function cycleSummaryProvider() {
+  const next: Record<SummaryProvider, SummaryProvider> = {
+    google: 'volcengine',
+    volcengine: 'github',
+    github: 'google'
+  }
+
+  settingsStore.patchSettings({ summaryProvider: next[settingsStore.settings.summaryProvider] })
+}
 
 function cycleSummaryLength() {
   const next: Record<SummaryLength, SummaryLength> = {
@@ -35,15 +46,6 @@ function cycleSummaryLength() {
   }
 
   settingsStore.patchSettings({ summaryLength: next[settingsStore.settings.summaryLength] })
-}
-
-function cycleSummaryProvider() {
-  const next: Record<SummaryProvider, SummaryProvider> = {
-    google: 'volcengine',
-    volcengine: 'google'
-  }
-
-  settingsStore.patchSettings({ summaryProvider: next[settingsStore.settings.summaryProvider] })
 }
 
 onMounted(async () => {

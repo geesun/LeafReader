@@ -114,7 +114,7 @@ export interface TranslationBlockPayload {
 }
 
 export type SummaryLength = 'short' | 'medium' | 'long'
-export type SummaryProvider = 'google' | 'volcengine'
+export type SummaryProvider = 'google' | 'volcengine' | 'github'
 
 export interface RefreshSummary {
   inserted: number
