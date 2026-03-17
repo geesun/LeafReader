@@ -18,10 +18,9 @@ const active = computed(() => {
 const hideTabbar = computed(() => route.name === 'article' || uiStore.tabbarHidden)
 
 function onTabTap(name: string) {
-  if (name === active.value) {
-    // Already on this tab — scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  } else {
+  // Always scroll to top, whether switching tabs or re-tapping the active one
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  if (name !== active.value) {
     void router.push({ name })
   }
 }
