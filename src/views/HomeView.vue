@@ -247,8 +247,12 @@ function handleOutsideClick(event: MouseEvent | TouchEvent) {
   showFilterPanel.value = false
 }
 
-onBeforeRouteLeave(() => {
-  savedScrollY = window.scrollY
+onBeforeRouteLeave((to) => {
+  if (to.name === 'article') {
+    savedScrollY = window.scrollY
+  } else {
+    savedScrollY = 0
+  }
 })
 
 onMounted(async () => {
