@@ -89,7 +89,7 @@ export default {
           content = `<p>${article.digest || "点击原文查看详情"}</p>`;
         }
 
-        return { title, link: finalLink, content };
+        return { title, link: finalLink, content, ptime: article.ptime };
       }));
 
       // 3. 构造 RSS
@@ -97,12 +97,16 @@ export default {
       rss += '<title>网易新闻</title><link>https://news.163.com/</link>';
       for (const item of items) {
         if (!item) continue;
+        // ptime is "YYYY-MM-DD HH:MM:SS" in CST (UTC+8); convert to RFC 822 for pubDate
+        const pubDate = item.ptime
+          ? new Date(item.ptime.replace(' ', 'T') + '+08:00').toUTCString()
+          : new Date().toUTCString();
         rss += `<item>
           <title><![CDATA[${item.title}]]></title>
           <link>${item.link}</link>
           <guid>${item.link}</guid>
           <description><![CDATA[${item.content}]]></description>
-          <pubDate>${new Date().toUTCString()}</pubDate>
+          <pubDate>${pubDate}</pubDate>
         </item>`;
       }
       rss += '</channel></rss>';
