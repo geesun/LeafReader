@@ -78,7 +78,17 @@ async function upsertFeedItems(
   const db = await getDb()
   let inserted = 0
 
+  // Read the watermark set by the last trim for this subscription.
+  // Any item whose publishedAt is <= this value was already evicted and should
+  // not be re-inserted.
+  const subscription = await db.get('subscriptions', subscriptionId)
+  const watermark = subscription?.oldestKeptPublishedAt ?? null
+
   for (const item of items) {
+    // Skip items that fall at or before the trim watermark (they were evicted).
+    // Items without a publishedAt are not filtered — use the by-link check instead.
+    if (watermark && item.publishedAt && item.publishedAt <= watermark) continue
+
     const existing = await db.getFromIndex('articles', 'by-link', item.link)
     if (existing) continue
 
@@ -146,6 +156,27 @@ async function trimArticles(db: Awaited<ReturnType<typeof getDb>>): Promise<void
     }
 
     await tx.done
+
+    // Update the trim watermark on each affected subscription.
+    // Watermark = max(publishedAt) among the evicted articles for that subscription.
+    // On the next refresh, any incoming item with publishedAt <= watermark will be
+    // skipped, preventing re-insertion of already-evicted articles.
+    const watermarkBySubscription = new Map<string, string>()
+    for (const article of expired) {
+      if (!article.publishedAt) continue
+      const current = watermarkBySubscription.get(article.subscriptionId)
+      if (!current || article.publishedAt > current) {
+        watermarkBySubscription.set(article.subscriptionId, article.publishedAt)
+      }
+    }
+
+    for (const [subscriptionId, newWatermark] of watermarkBySubscription) {
+      const sub = await db.get('subscriptions', subscriptionId)
+      if (!sub) continue
+      // Only advance the watermark, never move it backwards.
+      if (sub.oldestKeptPublishedAt && sub.oldestKeptPublishedAt >= newWatermark) continue
+      await db.put('subscriptions', { ...sub, oldestKeptPublishedAt: newWatermark })
+    }
   } finally {
     trimInProgress = false
   }

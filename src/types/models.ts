@@ -13,6 +13,10 @@ export interface SubscriptionRecord {
   lastSuccessAt?: string
   lastError?: string
   isPinned: boolean
+  // After a trim, set to the max publishedAt of the evicted articles for this
+  // subscription. Any incoming feed item with publishedAt <= this value will
+  // be skipped on the next upsert, preventing re-insertion of trimmed articles.
+  oldestKeptPublishedAt?: string
 }
 
 export type ArticleContentSource = 'feed' | 'fulltext'
