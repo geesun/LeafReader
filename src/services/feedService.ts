@@ -2,12 +2,13 @@ import { getDb } from '@/services/db'
 import { fetchFeedXml } from '@/services/workerClient'
 import { parseFeedXml } from '@/services/feedParser'
 import type { ArticleRecord, SubscriptionRecord } from '@/types/models'
-import { compareArticlesByRecency } from '@/utils/articleTime'
+
 import { createId } from '@/utils/id'
 import { extractLeadImageFromHtml } from '@/utils/text'
 import { buildSubscriptionIconCandidates, shouldUseTextOnlySubscriptionIcon } from '@/utils/url'
 
 const MAX_ARTICLE_COUNT = 500
+let trimInProgress = false
 
 export async function createSubscriptionFromUrl(
   feedUrl: string,
@@ -111,22 +112,41 @@ async function upsertFeedItems(
 }
 
 async function trimArticles(db: Awaited<ReturnType<typeof getDb>>): Promise<void> {
-  const articles = await db.getAll('articles')
-  if (articles.length <= MAX_ARTICLE_COUNT) return
+  // Prevent concurrent trim runs (e.g. from parallel refreshAll workers)
+  if (trimInProgress) return
+  trimInProgress = true
+  try {
+    const articles = await db.getAll('articles')
+    if (articles.length <= MAX_ARTICLE_COUNT) return
 
-  const sorted = [...articles].sort(compareArticlesByRecency)
-  const expired = sorted.slice(MAX_ARTICLE_COUNT)
+    // Sort by createdAt ascending (oldest-inserted first) so we evict the
+    // articles that entered the database earliest, not the ones with the
+    // oldest publish date (which could be freshly-imported archives).
+    const sorted = [...articles].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
-  const tx = db.transaction(['articles', 'offline_assets'], 'readwrite')
-
-  for (const article of expired) {
-    const offlineAssets = await tx.objectStore('offline_assets').index('by-article').getAll(article.id)
-    for (const asset of offlineAssets) {
-      await tx.objectStore('offline_assets').delete(asset.id)
+    // Walk from the oldest end and collect candidates to delete.
+    // Only skip articles the user explicitly favorited.
+    const expired: ArticleRecord[] = []
+    for (const article of sorted) {
+      if (articles.length - expired.length <= MAX_ARTICLE_COUNT) break
+      if (article.isFavorite) continue
+      expired.push(article)
     }
 
-    await tx.objectStore('articles').delete(article.id)
-  }
+    if (!expired.length) return
 
-  await tx.done
+    const tx = db.transaction(['articles', 'offline_assets'], 'readwrite')
+
+    for (const article of expired) {
+      const offlineAssets = await tx.objectStore('offline_assets').index('by-article').getAll(article.id)
+      for (const asset of offlineAssets) {
+        await tx.objectStore('offline_assets').delete(asset.id)
+      }
+      await tx.objectStore('articles').delete(article.id)
+    }
+
+    await tx.done
+  } finally {
+    trimInProgress = false
+  }
 }
