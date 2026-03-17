@@ -70,7 +70,12 @@ export const useArticleStore = defineStore('articles', {
     async saveOffline(article: ArticleRecord, workerBaseUrl: string) {
       const updated = await saveArticleWithOfflineAssets(article, workerBaseUrl)
       this.current = updated
-      this.items = this.items.map((item) => (item.id === updated.id ? updated : item))
+      this.items = this.items.map((item) => {
+        if (item.id !== updated.id) return item
+        // Preserve the in-memory isRead state to avoid a stale DB read
+        // racing with the setRead call that preceded saveOffline
+        return { ...updated, isRead: item.isRead }
+      })
       return updated
     },
     async generateSummary(
