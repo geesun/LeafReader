@@ -1,3 +1,8 @@
+<script lang="ts">
+// Module-level variable — survives component unmount/remount
+let savedScrollY = 0
+</script>
+
 <script setup lang="ts">
 import { Clipboard } from '@capacitor/clipboard'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -560,8 +565,6 @@ async function refreshSubscriptions() {
   }
 }
 
-let savedScrollY = 0
-
 onBeforeRouteLeave(() => {
   savedScrollY = window.scrollY
 })
@@ -573,7 +576,9 @@ onMounted(async () => {
     const y = savedScrollY
     savedScrollY = 0
     await nextTick()
-    window.scrollTo({ top: y, behavior: 'instant' })
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: y, behavior: 'instant' })
+    })
   }
 
   for (const subscription of subscriptionStore.items) {
