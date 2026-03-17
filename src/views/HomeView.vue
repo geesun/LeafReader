@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 
 import ArticleListItem from '@/components/ArticleListItem.vue'
@@ -242,8 +242,22 @@ function handleOutsideClick(event: MouseEvent | TouchEvent) {
   showFilterPanel.value = false
 }
 
+let savedScrollY = 0
+
+onBeforeRouteLeave(() => {
+  savedScrollY = window.scrollY
+})
+
 onMounted(async () => {
   await Promise.all([articleStore.loadAll(), subscriptionStore.load()])
+
+  if (savedScrollY > 0) {
+    // Returning from article view — restore previous scroll position
+    const y = savedScrollY
+    savedScrollY = 0
+    await nextTick()
+    window.scrollTo({ top: y, behavior: 'instant' })
+  }
 
   if (!route.query.filter) {
     const savedFilter = localStorage.getItem(READING_FILTER_KEY)

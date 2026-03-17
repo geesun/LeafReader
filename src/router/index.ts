@@ -2,7 +2,11 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior(_to, _from, savedPosition) {
+  scrollBehavior(_to, from, savedPosition) {
+    // When returning from an article page, let the list view restore its own
+    // scroll position manually (savedPosition is unreliable in WebView with
+    // router.replace-based swipe navigation)
+    if (from.name === 'article') return false
     if (savedPosition) return savedPosition
     return { top: 0 }
   },

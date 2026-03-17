@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Clipboard } from '@capacitor/clipboard'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
@@ -560,8 +560,21 @@ async function refreshSubscriptions() {
   }
 }
 
+let savedScrollY = 0
+
+onBeforeRouteLeave(() => {
+  savedScrollY = window.scrollY
+})
+
 onMounted(async () => {
   await Promise.all([subscriptionStore.load(), articleStore.loadAll()])
+
+  if (savedScrollY > 0) {
+    const y = savedScrollY
+    savedScrollY = 0
+    await nextTick()
+    window.scrollTo({ top: y, behavior: 'instant' })
+  }
 
   for (const subscription of subscriptionStore.items) {
     void prewarmSubscriptionIcon(subscription)
