@@ -8,19 +8,23 @@ const route = useRoute()
 const router = useRouter()
 const uiStore = useUiStore()
 
-const active = computed({
-  get: () => {
-    if (route.name === 'reading') return 'reading'
-    if (route.name === 'favorites') return 'favorites'
-    if (route.name === 'settings') return 'settings'
-    return 'home'
-  },
-  set: (value: string) => {
-    void router.push({ name: value })
-  }
+const active = computed(() => {
+  if (route.name === 'reading') return 'reading'
+  if (route.name === 'favorites') return 'favorites'
+  if (route.name === 'settings') return 'settings'
+  return 'home'
 })
 
 const hideTabbar = computed(() => route.name === 'article' || uiStore.tabbarHidden)
+
+function onTabTap(name: string) {
+  if (name === active.value) {
+    // Already on this tab — scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } else {
+    void router.push({ name })
+  }
+}
 </script>
 
 <template>
@@ -29,11 +33,11 @@ const hideTabbar = computed(() => route.name === 'article' || uiStore.tabbarHidd
       <RouterView />
     </main>
 
-    <van-tabbar v-if="!hideTabbar" v-model="active" route fixed placeholder>
-      <van-tabbar-item name="home" icon="notes-o" to="/">订阅</van-tabbar-item>
-      <van-tabbar-item name="reading" icon="newspaper-o" to="/reading">阅读</van-tabbar-item>
-      <van-tabbar-item name="favorites" icon="star-o" to="/favorites">收藏</van-tabbar-item>
-      <van-tabbar-item name="settings" icon="setting-o" to="/settings">设置</van-tabbar-item>
+    <van-tabbar v-if="!hideTabbar" :model-value="active" fixed placeholder>
+      <van-tabbar-item name="home" icon="notes-o" @click="onTabTap('home')">订阅</van-tabbar-item>
+      <van-tabbar-item name="reading" icon="newspaper-o" @click="onTabTap('reading')">阅读</van-tabbar-item>
+      <van-tabbar-item name="favorites" icon="star-o" @click="onTabTap('favorites')">收藏</van-tabbar-item>
+      <van-tabbar-item name="settings" icon="setting-o" @click="onTabTap('settings')">设置</van-tabbar-item>
     </van-tabbar>
   </div>
 </template>

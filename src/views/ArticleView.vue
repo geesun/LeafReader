@@ -218,16 +218,15 @@ async function loadArticle(id: string) {
     await articleStore.setRead(current, true)
   }
 
-  if (current && !current.isOfflineSaved) {
-    try {
-      await articleStore.saveOffline(current, DEFAULT_WORKER_BASE_URL)
-    } catch {
-    }
-  }
-
   loading.value = false
   await nextTick()
   scrollToTop()
+
+  // Run offline save after the article is already visible and scroll is reset,
+  // so it never triggers a mid-read scroll jump
+  if (current && !current.isOfflineSaved) {
+    articleStore.saveOffline(current, DEFAULT_WORKER_BASE_URL).catch(() => {})
+  }
 }
 
 watch(
