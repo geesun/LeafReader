@@ -1,6 +1,10 @@
+<script lang="ts">
+let savedScrollY = 0
+</script>
+
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { nextTick, onMounted } from 'vue'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 
 import ArticleListItem from '@/components/ArticleListItem.vue'
 import { formatRelativeDate } from '@/utils/date'
@@ -15,8 +19,25 @@ async function openArticle(article: (typeof articleStore.items)[number]) {
   await router.push({ name: 'article', params: { id: article.id } })
 }
 
+onBeforeRouteLeave((to) => {
+  if (to.name === 'article') {
+    savedScrollY = window.scrollY
+  } else {
+    savedScrollY = 0
+  }
+})
+
 onMounted(async () => {
   await articleStore.loadFavorites()
+
+  if (savedScrollY > 0) {
+    const y = savedScrollY
+    savedScrollY = 0
+    await nextTick()
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: y, behavior: 'instant' })
+    })
+  }
 })
 
 async function markArticleRead(article: (typeof articleStore.items)[number]) {
