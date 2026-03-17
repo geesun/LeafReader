@@ -1,5 +1,5 @@
 import { getDb } from '@/services/db'
-import { extractFullText, fetchFeedXml } from '@/services/workerClient'
+import { fetchFeedXml } from '@/services/workerClient'
 import { parseFeedXml } from '@/services/feedParser'
 import type { ArticleRecord, SubscriptionRecord } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
@@ -18,12 +18,10 @@ export async function createSubscriptionFromUrl(
   const now = new Date().toISOString()
   const db = await getDb()
 
-  const existing = await db.getAll('subscriptions')
-  const duplicated = existing.find((item) => item.feedUrl === feedUrl)
-  if (duplicated) {
+  const existing = await db.getFromIndex('subscriptions', 'by-feed-url', feedUrl)
+  if (existing) {
     throw new Error('该订阅已存在')
   }
-
   const subscription: SubscriptionRecord = {
     id: createId('sub'),
     title: parsed.title,
@@ -40,15 +38,19 @@ export async function createSubscriptionFromUrl(
   }
 
   await db.put('subscriptions', subscription)
-  await upsertFeedItems(subscription.id, parsed.items, workerBaseUrl)
+  await upsertFeedItems(subscription.id, parsed.items)
+  await trimArticles(db)
   return subscription
 }
 
 export async function refreshSubscription(subscription: SubscriptionRecord, workerBaseUrl: string): Promise<number> {
   const xml = await fetchFeedXml(workerBaseUrl, subscription.feedUrl)
   const parsed = parseFeedXml(xml)
-  const inserted = await upsertFeedItems(subscription.id, parsed.items, workerBaseUrl)
+  const inserted = await upsertFeedItems(subscription.id, parsed.items)
   const db = await getDb()
+  if (inserted > 0) {
+    await trimArticles(db)
+  }
   const nextIconUrl = buildSubscriptionIconCandidates(parsed.link || subscription.siteUrl, subscription.feedUrl)[0] || subscription.iconUrl
   const iconChanged = nextIconUrl !== subscription.iconUrl
   const textOnlyIcon = shouldUseTextOnlySubscriptionIcon(parsed.link || subscription.siteUrl, subscription.feedUrl)
@@ -71,7 +73,6 @@ export async function refreshSubscription(subscription: SubscriptionRecord, work
 async function upsertFeedItems(
   subscriptionId: string,
   items: ReturnType<typeof parseFeedXml>['items'],
-  workerBaseUrl: string
 ): Promise<number> {
   const db = await getDb()
   let inserted = 0
@@ -81,7 +82,7 @@ async function upsertFeedItems(
     if (existing) continue
 
     const now = new Date().toISOString()
-    let article: ArticleRecord = {
+    const article: ArticleRecord = {
       id: createId('art'),
       subscriptionId,
       feedItemId: item.feedItemId,
@@ -102,25 +103,9 @@ async function upsertFeedItems(
       leadImageUrl: extractLeadImageFromHtml(item.contentHtml, item.link)
     }
 
-    try {
-      const fullText = await extractFullText(workerBaseUrl, item.link)
-      article = {
-        ...article,
-        fullContentHtml: fullText.contentHtml,
-        contentText: article.contentText || fullText.textContent,
-        contentSource: 'fulltext',
-        hasFullContent: true,
-        leadImageUrl: fullText.leadImageUrl,
-        author: fullText.byline || article.author
-      }
-    } catch {
-    }
-
     await db.put('articles', article)
     inserted += 1
   }
-
-  await trimArticles(db)
 
   return inserted
 }

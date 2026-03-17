@@ -75,18 +75,26 @@ export const useSubscriptionStore = defineStore('subscriptions', {
         let count = 0
         let completed = 0
         const total = feedUrls.length
+        const concurrency = 5
+        const queue = [...feedUrls]
 
-        for (const feedUrl of feedUrls) {
-          try {
-            await this.add(feedUrl, workerBaseUrl, true)
-            count += 1
-          } catch {
-            // ignore duplicates or invalid feeds while keeping progress
+        const worker = async () => {
+          while (queue.length) {
+            const feedUrl = queue.shift()
+            if (!feedUrl) return
+            try {
+              await this.add(feedUrl, workerBaseUrl, true)
+              count += 1
+            } catch {
+              // ignore duplicates or invalid feeds while keeping progress
+            }
+            completed += 1
+            onProgress?.({ completed, total })
           }
-
-          completed += 1
-          onProgress?.({ completed, total })
         }
+
+        const workers = Array.from({ length: Math.min(concurrency, Math.max(feedUrls.length, 1)) }, () => worker())
+        await Promise.all(workers)
 
         await this.load()
         return count
@@ -119,7 +127,7 @@ export const useSubscriptionStore = defineStore('subscriptions', {
     },
     async refreshAll(
       workerBaseUrl: string,
-      concurrency = 1,
+      concurrency = 5,
       onProgress?: (progress: RefreshProgress) => void
     ): Promise<RefreshSummary> {
       return this.runWithSourceUpdateLock(async () => {

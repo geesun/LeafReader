@@ -543,7 +543,7 @@ async function refreshSubscriptions() {
   try {
     const summary = await subscriptionStore.refreshAll(
       DEFAULT_WORKER_BASE_URL,
-      1,
+      5,
       ({ completed, total, title }) => {
         refreshCompleted.value = completed
         refreshTotal.value = total
