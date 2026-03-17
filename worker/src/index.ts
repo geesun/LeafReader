@@ -584,7 +584,7 @@ async function requestGithubTranslation(prompt: string, env: Env): Promise<Trans
   }
 }
 
-
+async function requestGoogleTranslation(prompt: string, env: Env): Promise<TranslationResult> {
   if (!env.GOOGLE_AI_API_KEY) {
     throw new Error('GOOGLE_AI_API_KEY is not configured')
   }
