@@ -13,10 +13,6 @@ export interface SubscriptionRecord {
   lastSuccessAt?: string
   lastError?: string
   isPinned: boolean
-  // After a trim, set to the max publishedAt of the evicted articles for this
-  // subscription. Any incoming feed item with publishedAt <= this value will
-  // be skipped on the next upsert, preventing re-insertion of trimmed articles.
-  oldestKeptPublishedAt?: string
 }
 
 export type ArticleContentSource = 'feed' | 'fulltext'
@@ -39,6 +35,11 @@ export interface ArticleRecord {
   updatedAt: string
   isRead: boolean
   isFavorite: boolean
+  // True if this article was NOT present in the latest feed XML fetch.
+  // Articles with isDeletable=true are candidates for trimming when the total
+  // article count exceeds MAX_ARTICLE_COUNT. Reset to false whenever the
+  // article appears in a fresh feed fetch.
+  isDeletable: boolean
   readAt?: string
   favoriteAt?: string
   hasFullContent: boolean

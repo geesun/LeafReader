@@ -39,7 +39,7 @@ export async function createSubscriptionFromUrl(
   }
 
   await db.put('subscriptions', subscription)
-  await upsertFeedItems(subscription.id, parsed.items)
+  await syncFeedItems(subscription.id, parsed.items)
   await trimArticles(db)
   return subscription
 }
@@ -47,13 +47,13 @@ export async function createSubscriptionFromUrl(
 export async function refreshSubscription(subscription: SubscriptionRecord, workerBaseUrl: string): Promise<number> {
   const xml = await fetchFeedXml(workerBaseUrl, subscription.feedUrl)
   const parsed = parseFeedXml(xml)
-  const inserted = await upsertFeedItems(subscription.id, parsed.items)
+  const inserted = await syncFeedItems(subscription.id, parsed.items)
   const db = await getDb()
   if (inserted > 0) {
     await trimArticles(db)
   }
-  // Re-read the subscription from IDB so we don't overwrite fields (e.g.
-  // oldestKeptPublishedAt) that may have been written by a concurrent trim.
+  // Re-read from IDB to avoid overwriting concurrent writes (e.g. from other
+  // parallel refresh workers that may have updated this record).
   const fresh = (await db.get('subscriptions', subscription.id)) ?? subscription
   const nextIconUrl = buildSubscriptionIconCandidates(parsed.link || fresh.siteUrl, fresh.feedUrl)[0] || fresh.iconUrl
   const iconChanged = nextIconUrl !== fresh.iconUrl
@@ -74,82 +74,111 @@ export async function refreshSubscription(subscription: SubscriptionRecord, work
   return inserted
 }
 
-async function upsertFeedItems(
+/**
+ * Sync the latest feed items into the articles store.
+ *
+ * Algorithm:
+ * 1. Mark ALL existing articles for this subscription as isDeletable=true.
+ * 2. For each item returned by the feed XML:
+ *    - If an article with the same link already exists → set isDeletable=false
+ *      (keep all user state: isRead, isFavorite, etc. untouched).
+ *    - If no article exists → insert a new record with isDeletable=false.
+ * 3. Return the number of newly inserted articles.
+ *
+ * After this call, any article whose isDeletable is still true was absent from
+ * the latest feed response and is a candidate for trimming.
+ */
+async function syncFeedItems(
   subscriptionId: string,
   items: ReturnType<typeof parseFeedXml>['items'],
 ): Promise<number> {
   const db = await getDb()
+
+  // Step 1: mark all articles for this subscription as deletable.
+  const existing = await db.getAllFromIndex('articles', 'by-subscription', subscriptionId)
+  for (const article of existing) {
+    if (!article.isDeletable) {
+      await db.put('articles', { ...article, isDeletable: true, updatedAt: new Date().toISOString() })
+    }
+  }
+
+  // Build a link → id map for fast lookup.
+  const linkToId = new Map<string, string>(existing.map(a => [a.link, a.id]))
+
   let inserted = 0
 
-  // Read the watermark set by the last trim for this subscription.
-  // Any item whose publishedAt is <= this value was already evicted and should
-  // not be re-inserted.
-  const subscription = await db.get('subscriptions', subscriptionId)
-  const watermark = subscription?.oldestKeptPublishedAt ?? null
-
+  // Step 2: upsert each item from the feed.
   for (const item of items) {
-    // Skip items that fall at or before the trim watermark (they were evicted).
-    // Items without a publishedAt are not filtered — use the by-link check instead.
-    if (watermark && item.publishedAt && item.publishedAt <= watermark) continue
+    const existingId = linkToId.get(item.link)
 
-    const existing = await db.getFromIndex('articles', 'by-link', item.link)
-    if (existing) continue
-
-    const now = new Date().toISOString()
-    const article: ArticleRecord = {
-      id: createId('art'),
-      subscriptionId,
-      feedItemId: item.feedItemId,
-      title: item.title,
-      link: item.link,
-      author: item.author,
-      summary: item.summary,
-      feedContentHtml: item.contentHtml,
-      contentText: item.contentText,
-      contentSource: 'feed',
-      publishedAt: item.publishedAt,
-      createdAt: now,
-      updatedAt: now,
-      isRead: false,
-      isFavorite: false,
-      hasFullContent: false,
-      isOfflineSaved: false,
-      leadImageUrl: extractLeadImageFromHtml(item.contentHtml, item.link)
+    if (existingId) {
+      // Article already in DB — just clear the deletable flag.
+      const record = await db.get('articles', existingId)
+      if (record && record.isDeletable) {
+        await db.put('articles', { ...record, isDeletable: false, updatedAt: new Date().toISOString() })
+      }
+    } else {
+      // New article — insert it.
+      const now = new Date().toISOString()
+      const article: ArticleRecord = {
+        id: createId('art'),
+        subscriptionId,
+        feedItemId: item.feedItemId,
+        title: item.title,
+        link: item.link,
+        author: item.author,
+        summary: item.summary,
+        feedContentHtml: item.contentHtml,
+        contentText: item.contentText,
+        contentSource: 'feed',
+        publishedAt: item.publishedAt,
+        createdAt: now,
+        updatedAt: now,
+        isRead: false,
+        isFavorite: false,
+        isDeletable: false,
+        hasFullContent: false,
+        isOfflineSaved: false,
+        leadImageUrl: extractLeadImageFromHtml(item.contentHtml, item.link)
+      }
+      await db.put('articles', article)
+      inserted += 1
     }
-
-    await db.put('articles', article)
-    inserted += 1
   }
 
   return inserted
 }
 
+/**
+ * Remove articles that are marked isDeletable=true (absent from the latest feed
+ * response) when the total article count exceeds MAX_ARTICLE_COUNT.
+ *
+ * Eviction order: oldest createdAt first (insertion order), skipping favorites.
+ * If there are no deletable articles, nothing is deleted even if the total
+ * exceeds MAX_ARTICLE_COUNT (feed-active articles are never force-evicted).
+ */
 async function trimArticles(db: Awaited<ReturnType<typeof getDb>>): Promise<void> {
-  // Prevent concurrent trim runs (e.g. from parallel refreshAll workers)
+  // Prevent concurrent trim runs (e.g. from parallel refreshAll workers).
   if (trimInProgress) return
   trimInProgress = true
   try {
     const articles = await db.getAll('articles')
     if (articles.length <= MAX_ARTICLE_COUNT) return
 
-    // Sort by createdAt ascending (oldest-inserted first) so we evict the
-    // articles that entered the database earliest, not the ones with the
-    // oldest publish date (which could be freshly-imported archives).
-    const sorted = [...articles].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    // Candidates: isDeletable=true and not favorited, sorted oldest-first.
+    const candidates = articles
+      .filter(a => a.isDeletable && !a.isFavorite)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
-    // Walk from the oldest end and collect candidates to delete.
-    // Only skip articles the user explicitly favorited.
-    const expired: ArticleRecord[] = []
-    for (const article of sorted) {
-      if (articles.length - expired.length <= MAX_ARTICLE_COUNT) break
-      if (article.isFavorite) continue
-      expired.push(article)
-    }
+    if (!candidates.length) return
+
+    // How many do we need to remove?
+    const toRemoveCount = articles.length - MAX_ARTICLE_COUNT
+    const expired = candidates.slice(0, toRemoveCount)
 
     if (!expired.length) return
 
     const tx = db.transaction(['articles', 'offline_assets'], 'readwrite')
-
     for (const article of expired) {
       const offlineAssets = await tx.objectStore('offline_assets').index('by-article').getAll(article.id)
       for (const asset of offlineAssets) {
@@ -157,29 +186,7 @@ async function trimArticles(db: Awaited<ReturnType<typeof getDb>>): Promise<void
       }
       await tx.objectStore('articles').delete(article.id)
     }
-
     await tx.done
-
-    // Update the trim watermark on each affected subscription.
-    // Watermark = max(publishedAt) among the evicted articles for that subscription.
-    // On the next refresh, any incoming item with publishedAt <= watermark will be
-    // skipped, preventing re-insertion of already-evicted articles.
-    const watermarkBySubscription = new Map<string, string>()
-    for (const article of expired) {
-      if (!article.publishedAt) continue
-      const current = watermarkBySubscription.get(article.subscriptionId)
-      if (!current || article.publishedAt > current) {
-        watermarkBySubscription.set(article.subscriptionId, article.publishedAt)
-      }
-    }
-
-    for (const [subscriptionId, newWatermark] of watermarkBySubscription) {
-      const sub = await db.get('subscriptions', subscriptionId)
-      if (!sub) continue
-      // Only advance the watermark, never move it backwards.
-      if (sub.oldestKeptPublishedAt && sub.oldestKeptPublishedAt >= newWatermark) continue
-      await db.put('subscriptions', { ...sub, oldestKeptPublishedAt: newWatermark })
-    }
   } finally {
     trimInProgress = false
   }
