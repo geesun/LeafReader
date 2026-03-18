@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { showToast } from 'vant'
+import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { exportSubscriptionsToOpml, parseOpml } from '@/services/opmlService'
+import { trimAllSubscriptionsArticles } from '@/services/feedService'
 import { useSettingsStore } from '@/stores/settings'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import type { SummaryLength, SummaryProvider } from '@/types/models'
@@ -12,6 +13,7 @@ const settingsStore = useSettingsStore()
 const subscriptionStore = useSubscriptionStore()
 
 const fontSize = ref(settingsStore.settings.fontSize)
+const articleRetentionDays = ref(settingsStore.settings.articleRetentionDays)
 const importingOpml = ref(false)
 const importProgress = ref(0)
 const importTotal = ref(0)
@@ -56,11 +58,40 @@ watch(fontSize, (value) => {
   settingsStore.patchSettings({ fontSize: value })
 })
 
+watch(articleRetentionDays, (value) => {
+  settingsStore.patchSettings({ articleRetentionDays: value })
+})
+
 const themeLabel = computed(() => {
   if (settingsStore.settings.theme === 'dark') return '深色'
   if (settingsStore.settings.theme === 'light') return '浅色'
   return '跟随系统'
 })
+
+const cleaningArticles = ref(false)
+
+async function manualCleanArticles() {
+  try {
+    await showConfirmDialog({
+      title: '清理旧文章',
+      message: `将删除每个订阅中超过 ${articleRetentionDays.value} 天且不在收藏中的文章（每个订阅保留最近 50 条以内不受影响）。确认继续？`,
+      confirmButtonText: '清理',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+
+  cleaningArticles.value = true
+  try {
+    const deleted = await trimAllSubscriptionsArticles(articleRetentionDays.value)
+    showToast(deleted > 0 ? `已清理 ${deleted} 篇文章` : '没有需要清理的文章')
+  } catch {
+    showToast('清理失败，请重试')
+  } finally {
+    cleaningArticles.value = false
+  }
+}
 
 async function downloadOpml() {
   if (!subscriptionStore.items.length) {
@@ -197,6 +228,30 @@ async function importOpml(event: Event) {
       <section class="settings-section">
         <p class="settings-section__title">数据管理</p>
         <van-cell-group inset>
+          <van-cell>
+            <template #title>
+              <div class="setting-cell-head">
+                <span>文章保留天数</span>
+                <span class="font-size-value">{{ articleRetentionDays }} 天</span>
+              </div>
+            </template>
+            <template #label>
+              <div class="font-slider-wrap">
+                <span class="font-slider-label">7</span>
+                <input v-model="articleRetentionDays" class="font-range" type="range" min="7" max="180" step="1" />
+                <span class="font-slider-label">180</span>
+              </div>
+            </template>
+          </van-cell>
+          <van-cell title="清理旧文章">
+            <template #label>
+              <span
+                class="import-file-text"
+                :class="{ 'import-file-text--disabled': cleaningArticles }"
+                @click="manualCleanArticles"
+              >{{ cleaningArticles ? '正在清理…' : '删除超期旧文章' }}</span>
+            </template>
+          </van-cell>
           <van-cell title="导出 OPML">
             <template #label>
               <span class="import-file-text" @click="downloadOpml">导出 OPML</span>

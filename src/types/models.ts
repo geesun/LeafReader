@@ -35,11 +35,6 @@ export interface ArticleRecord {
   updatedAt: string
   isRead: boolean
   isFavorite: boolean
-  // True if this article was NOT present in the latest feed XML fetch.
-  // Articles with isDeletable=true are candidates for trimming when the total
-  // article count exceeds MAX_ARTICLE_COUNT. Reset to false whenever the
-  // article appears in a fresh feed fetch.
-  isDeletable: boolean
   readAt?: string
   favoriteAt?: string
   hasFullContent: boolean
@@ -151,4 +146,5 @@ export interface AppSettings {
   fontSize: number
   summaryLength: SummaryLength
   summaryProvider: SummaryProvider
+  articleRetentionDays: number
 }

@@ -17,7 +17,6 @@ interface NeoReaderDB extends DBSchema {
       'by-favorite': number
       'by-read': number
       'by-link': string
-      'by-deletable': number
     }
   }
   offline_assets: {
@@ -31,7 +30,7 @@ let dbPromise: Promise<IDBPDatabase<NeoReaderDB>> | undefined
 
 export function getDb() {
   if (!dbPromise) {
-    dbPromise = openDB<NeoReaderDB>('neoreader-db', 4, {
+    dbPromise = openDB<NeoReaderDB>('neoreader-db', 5, {
       async upgrade(db, oldVersion, _newVersion, tx) {
         if (oldVersion < 1) {
           const subscriptionStore = db.createObjectStore('subscriptions', { keyPath: 'id' })
@@ -44,7 +43,6 @@ export function getDb() {
           articleStore.createIndex('by-favorite', 'isFavorite')
           articleStore.createIndex('by-read', 'isRead')
           articleStore.createIndex('by-link', 'link')
-          articleStore.createIndex('by-deletable', 'isDeletable')
 
           const offlineStore = db.createObjectStore('offline_assets', { keyPath: 'id' })
           offlineStore.createIndex('by-article', 'articleId')
@@ -52,18 +50,26 @@ export function getDb() {
         }
 
         if (oldVersion < 4) {
-          // Add by-deletable index and backfill isDeletable=false on all existing articles.
-          // (This branch also runs for databases created at version 1, 2, or 3.)
+          // Version 4 added the by-deletable index; that migration is superseded
+          // by version 5 which removes it. Nothing to do here for fresh installs
+          // (oldVersion < 1 already handled above), but we must handle the case
+          // where someone is upgrading from v1/v2/v3 directly to v5 — in that
+          // scenario the by-deletable index was never created so we skip it.
+        }
+
+        if (oldVersion < 5) {
+          // Remove the by-deletable index (isDeletable field is no longer used).
           const articleStore = tx.objectStore('articles')
-          if (!articleStore.indexNames.contains('by-deletable')) {
-            articleStore.createIndex('by-deletable', 'isDeletable')
+          if ((articleStore.indexNames as DOMStringList).contains('by-deletable')) {
+            articleStore.deleteIndex('by-deletable' as never)
           }
-          // Backfill: treat every existing article as not-deletable so they are
-          // never trimmed until their subscription is refreshed at least once.
+          // Strip the isDeletable field from all existing article records.
           let cursor = await articleStore.openCursor()
           while (cursor) {
-            if ((cursor.value as ArticleRecord).isDeletable === undefined) {
-              await cursor.update({ ...(cursor.value as ArticleRecord), isDeletable: false })
+            const record = cursor.value as ArticleRecord & { isDeletable?: boolean }
+            if ('isDeletable' in record) {
+              const { isDeletable: _, ...clean } = record
+              await cursor.update(clean as ArticleRecord)
             }
             cursor = await cursor.continue()
           }
