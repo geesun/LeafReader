@@ -108,7 +108,11 @@ async function syncFeedItems(
   let inserted = 0
 
   // Step 2: upsert each item from the feed.
-  for (const item of items) {
+  // RSS XML typically lists newest items first, so iterate in reverse order
+  // (oldest first). This ensures that when publishedAt is absent, the
+  // createdAt insertion timestamp naturally reflects chronological order:
+  // older articles get a smaller createdAt, newer ones get a larger createdAt.
+  for (const item of [...items].reverse()) {
     const existingId = linkToId.get(item.link)
 
     if (existingId) {
