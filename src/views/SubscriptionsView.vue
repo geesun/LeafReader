@@ -11,6 +11,7 @@ import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { createWorkerUrl } from '@/services/workerClient'
+import { isNative } from '@/services/nativeHttp'
 import { getArticleSortTimestamp } from '@/utils/articleTime'
 import type { SubscriptionRecord } from '@/types/models'
 import { buildSubscriptionIconCandidates, shouldUseTextOnlySubscriptionIcon } from '@/utils/url'
@@ -199,7 +200,8 @@ function getSubscriptionIconUrl(subscription: SubscriptionRecord): string {
   const candidate = candidates[attempt]
 
   if (!candidate) return ''
-  return createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', candidate)
+  // On native Android, load icons directly; on web use the Worker asset proxy.
+  return isNative() ? candidate : createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', candidate)
 }
 
 function isSubscriptionIconReady(subscription: SubscriptionRecord): boolean {
@@ -269,7 +271,9 @@ async function prewarmSubscriptionIcon(subscription: SubscriptionRecord) {
   const candidates = getSubscriptionIconCandidates(subscription)
   for (const candidate of candidates) {
     try {
-      const response = await fetch(createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', candidate))
+      // On native Android, fetch icons directly; on web use the Worker asset proxy.
+      const iconUrl = isNative() ? candidate : createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', candidate)
+      const response = await fetch(iconUrl)
       if (!response.ok) continue
 
       const blob = await response.blob()
