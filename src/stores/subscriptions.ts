@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 
 import { getDb } from '@/services/db'
-import { createSubscriptionFromUrl, refreshSubscription } from '@/services/feedService'
+import { createSubscriptionFromUrl, refreshSubscription, trimArticlesAfterRefresh } from '@/services/feedService'
 import type { RefreshSummary, SubscriptionRecord } from '@/types/models'
 
 interface RefreshProgress {
@@ -177,6 +177,7 @@ export const useSubscriptionStore = defineStore('subscriptions', {
 
         const workers = Array.from({ length: Math.min(concurrency, Math.max(queue.length, 1)) }, () => worker())
         await Promise.all(workers)
+        await trimArticlesAfterRefresh()
         await this.load()
         return summary
       })

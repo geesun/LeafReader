@@ -10,6 +10,10 @@ import { buildSubscriptionIconCandidates, shouldUseTextOnlySubscriptionIcon } fr
 const MAX_ARTICLE_COUNT = 500
 let trimInProgress = false
 
+function normalizeArticleTitle(title: string | undefined): string {
+  return (title ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
 export async function createSubscriptionFromUrl(
   feedUrl: string,
   workerBaseUrl: string
@@ -49,9 +53,6 @@ export async function refreshSubscription(subscription: SubscriptionRecord, work
   const parsed = parseFeedXml(xml)
   const inserted = await syncFeedItems(subscription.id, parsed.items)
   const db = await getDb()
-  if (inserted > 0) {
-    await trimArticles(db)
-  }
   // Re-read from IDB to avoid overwriting concurrent writes (e.g. from other
   // parallel refresh workers that may have updated this record).
   const fresh = (await db.get('subscriptions', subscription.id)) ?? subscription
@@ -72,6 +73,11 @@ export async function refreshSubscription(subscription: SubscriptionRecord, work
     lastError: undefined
   })
   return inserted
+}
+
+export async function trimArticlesAfterRefresh(): Promise<void> {
+  const db = await getDb()
+  await trimArticles(db)
 }
 
 /**
@@ -102,8 +108,18 @@ async function syncFeedItems(
     }
   }
 
-  // Build a link → id map for fast lookup.
-  const linkToId = new Map<string, string>(existing.map(a => [a.link, a.id]))
+  // Build lookup maps for fast matching.
+  // Try link first, then stable feedItemId, then normalized title within the
+  // same subscription as a final fallback for feeds that rewrite URLs.
+  const linkToId = new Map<string, string>(existing.map((a) => [a.link, a.id]))
+  const feedItemIdToId = new Map<string, string>(existing.filter((a) => a.feedItemId).map((a) => [a.feedItemId, a.id]))
+  const titleToId = new Map<string, string>()
+  for (const article of existing) {
+    const normalizedTitle = normalizeArticleTitle(article.title)
+    if (normalizedTitle && !titleToId.has(normalizedTitle)) {
+      titleToId.set(normalizedTitle, article.id)
+    }
+  }
 
   let inserted = 0
 
@@ -113,13 +129,46 @@ async function syncFeedItems(
   // createdAt insertion timestamp naturally reflects chronological order:
   // older articles get a smaller createdAt, newer ones get a larger createdAt.
   for (const item of [...items].reverse()) {
-    const existingId = linkToId.get(item.link)
+    const normalizedTitle = normalizeArticleTitle(item.title)
+    const existingId = linkToId.get(item.link) ?? feedItemIdToId.get(item.feedItemId) ?? titleToId.get(normalizedTitle)
 
     if (existingId) {
-      // Article already in DB — just clear the deletable flag.
+      // Article already in DB — clear the deletable flag and sync feed fields
+      // that may legitimately change between refreshes while preserving user
+      // state like isRead/isFavorite.
       const record = await db.get('articles', existingId)
-      if (record && record.isDeletable) {
-        await db.put('articles', { ...record, isDeletable: false, updatedAt: new Date().toISOString() })
+      if (record) {
+        const nextTitle = item.title || record.title
+        const nextLink = item.link || record.link
+        const nextLeadImageUrl = extractLeadImageFromHtml(item.contentHtml, nextLink) || record.leadImageUrl
+        const changed =
+          record.isDeletable ||
+          record.title !== nextTitle ||
+          record.link !== nextLink ||
+          record.feedItemId !== item.feedItemId ||
+          record.author !== item.author ||
+          record.summary !== item.summary ||
+          record.feedContentHtml !== item.contentHtml ||
+          record.contentText !== item.contentText ||
+          record.publishedAt !== item.publishedAt ||
+          record.leadImageUrl !== nextLeadImageUrl
+
+        if (changed) {
+          await db.put('articles', {
+            ...record,
+            feedItemId: item.feedItemId,
+            title: nextTitle,
+            link: nextLink,
+            author: item.author,
+            summary: item.summary,
+            feedContentHtml: item.contentHtml,
+            contentText: item.contentText,
+            publishedAt: item.publishedAt,
+            leadImageUrl: nextLeadImageUrl,
+            isDeletable: false,
+            updatedAt: new Date().toISOString()
+          })
+        }
       }
     } else {
       // New article — insert it.
