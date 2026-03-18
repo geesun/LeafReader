@@ -52,17 +52,20 @@ export async function refreshSubscription(subscription: SubscriptionRecord, work
   if (inserted > 0) {
     await trimArticles(db)
   }
-  const nextIconUrl = buildSubscriptionIconCandidates(parsed.link || subscription.siteUrl, subscription.feedUrl)[0] || subscription.iconUrl
-  const iconChanged = nextIconUrl !== subscription.iconUrl
-  const textOnlyIcon = shouldUseTextOnlySubscriptionIcon(parsed.link || subscription.siteUrl, subscription.feedUrl)
+  // Re-read the subscription from IDB so we don't overwrite fields (e.g.
+  // oldestKeptPublishedAt) that may have been written by a concurrent trim.
+  const fresh = (await db.get('subscriptions', subscription.id)) ?? subscription
+  const nextIconUrl = buildSubscriptionIconCandidates(parsed.link || fresh.siteUrl, fresh.feedUrl)[0] || fresh.iconUrl
+  const iconChanged = nextIconUrl !== fresh.iconUrl
+  const textOnlyIcon = shouldUseTextOnlySubscriptionIcon(parsed.link || fresh.siteUrl, fresh.feedUrl)
   await db.put('subscriptions', {
-    ...subscription,
-    title: parsed.title || subscription.title,
-    siteUrl: parsed.link || subscription.siteUrl,
+    ...fresh,
+    title: parsed.title || fresh.title,
+    siteUrl: parsed.link || fresh.siteUrl,
     iconUrl: nextIconUrl,
     ...(iconChanged ? { cachedIconDataUrl: undefined } : {}),
-    iconLookupFailed: textOnlyIcon ? true : iconChanged ? false : subscription.iconLookupFailed,
-    description: parsed.description || subscription.description,
+    iconLookupFailed: textOnlyIcon ? true : iconChanged ? false : fresh.iconLookupFailed,
+    description: parsed.description || fresh.description,
     updatedAt: new Date().toISOString(),
     lastFetchedAt: new Date().toISOString(),
     lastSuccessAt: new Date().toISOString(),
