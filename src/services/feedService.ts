@@ -133,42 +133,16 @@ async function syncFeedItems(
     const existingId = linkToId.get(item.link) ?? feedItemIdToId.get(item.feedItemId) ?? titleToId.get(normalizedTitle)
 
     if (existingId) {
-      // Article already in DB — clear the deletable flag and sync feed fields
-      // that may legitimately change between refreshes while preserving user
-      // state like isRead/isFavorite.
+      // Article already in DB — only clear the deletable flag. Do not overwrite
+      // any existing article fields so user state and previously stored content
+      // remain untouched.
       const record = await db.get('articles', existingId)
-      if (record) {
-        const nextTitle = item.title || record.title
-        const nextLink = item.link || record.link
-        const nextLeadImageUrl = extractLeadImageFromHtml(item.contentHtml, nextLink) || record.leadImageUrl
-        const changed =
-          record.isDeletable ||
-          record.title !== nextTitle ||
-          record.link !== nextLink ||
-          record.feedItemId !== item.feedItemId ||
-          record.author !== item.author ||
-          record.summary !== item.summary ||
-          record.feedContentHtml !== item.contentHtml ||
-          record.contentText !== item.contentText ||
-          record.publishedAt !== item.publishedAt ||
-          record.leadImageUrl !== nextLeadImageUrl
-
-        if (changed) {
-          await db.put('articles', {
-            ...record,
-            feedItemId: item.feedItemId,
-            title: nextTitle,
-            link: nextLink,
-            author: item.author,
-            summary: item.summary,
-            feedContentHtml: item.contentHtml,
-            contentText: item.contentText,
-            publishedAt: item.publishedAt,
-            leadImageUrl: nextLeadImageUrl,
-            isDeletable: false,
-            updatedAt: new Date().toISOString()
-          })
-        }
+      if (record?.isDeletable) {
+        await db.put('articles', {
+          ...record,
+          isDeletable: false,
+          updatedAt: new Date().toISOString()
+        })
       }
     } else {
       // New article — insert it.
