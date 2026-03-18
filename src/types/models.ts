@@ -147,4 +147,5 @@ export interface AppSettings {
   summaryLength: SummaryLength
   summaryProvider: SummaryProvider
   articleRetentionDays: number
+  githubCopilotApiKey: string
 }

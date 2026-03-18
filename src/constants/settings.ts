@@ -8,5 +8,6 @@ export const defaultSettings: AppSettings = {
   fontSize: 16,
   summaryLength: 'medium',
   summaryProvider: 'github',
-  articleRetentionDays: 30
+  articleRetentionDays: 30,
+  githubCopilotApiKey: ''
 }

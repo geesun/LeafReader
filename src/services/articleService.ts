@@ -3,7 +3,8 @@ import DOMPurify from 'dompurify'
 import { getDb } from '@/services/db'
 import { clearOfflineAssets, removeArticleOffline, saveArticleOffline } from '@/services/offlineService'
 import { extractFullText, summarizeArticle, translateArticle } from '@/services/workerClient'
-import { isNative, nativeExtractFullText } from '@/services/nativeHttp'
+import { isNative, nativeExtractFullText, nativeSummarizeArticle, nativeTranslateArticle } from '@/services/nativeHttp'
+import { loadSettings } from '@/services/settings'
 import type { ArticleRecord, BilingualParagraph, SummaryLength, SummaryProvider, TranslationBlockPayload } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
 import { compactTranslationBlocks, extractParagraphsFromHtml, looksLikeEnglishArticle, splitTextIntoParagraphBlocks, stripHtml } from '@/utils/text'
@@ -155,13 +156,20 @@ export async function generateArticleSummary(
     throw new Error('当前文章没有可用于总结的正文内容')
   }
 
-  const result = await summarizeArticle(workerBaseUrl, {
-    title: article.title,
-    url: article.link,
-    content,
-    length,
-    provider
-  })
+  const result = isNative()
+    ? await nativeSummarizeArticle(loadSettings().githubCopilotApiKey, {
+        title: article.title,
+        url: article.link,
+        content,
+        length
+      })
+    : await summarizeArticle(workerBaseUrl, {
+        title: article.title,
+        url: article.link,
+        content,
+        length,
+        provider
+      })
 
   const updated: ArticleRecord = {
     ...article,
@@ -198,12 +206,18 @@ export async function generateArticleTranslation(
 
   const payloadBlocks = createTranslationPayload(blocks)
 
-  const result = await translateArticle(workerBaseUrl, {
-    title: article.title,
-    url: article.link,
-    blocks: payloadBlocks,
-    provider
-  })
+  const result = isNative()
+    ? await nativeTranslateArticle(loadSettings().githubCopilotApiKey, {
+        title: article.title,
+        url: article.link,
+        blocks: payloadBlocks
+      })
+    : await translateArticle(workerBaseUrl, {
+        title: article.title,
+        url: article.link,
+        blocks: payloadBlocks,
+        provider
+      })
 
   const bilingualBlocks = createBilingualParagraphs(payloadBlocks, result.translatedBlocks)
 

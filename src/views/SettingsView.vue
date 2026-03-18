@@ -5,6 +5,7 @@ import { showConfirmDialog, showToast } from 'vant'
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { exportSubscriptionsToOpml, parseOpml } from '@/services/opmlService'
 import { trimAllSubscriptionsArticles } from '@/services/feedService'
+import { isNative } from '@/services/nativeHttp'
 import { useSettingsStore } from '@/stores/settings'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import type { SummaryLength, SummaryProvider } from '@/types/models'
@@ -14,9 +15,11 @@ const subscriptionStore = useSubscriptionStore()
 
 const fontSize = ref(settingsStore.settings.fontSize)
 const articleRetentionDays = ref(settingsStore.settings.articleRetentionDays)
+const githubCopilotApiKey = ref(settingsStore.settings.githubCopilotApiKey)
 const importingOpml = ref(false)
 const importProgress = ref(0)
 const importTotal = ref(0)
+const onNative = isNative()
 
 const summaryLengthLabel = computed(() => {
   if (settingsStore.settings.summaryLength === 'short') return '简短'
@@ -60,6 +63,10 @@ watch(fontSize, (value) => {
 
 watch(articleRetentionDays, (value) => {
   settingsStore.patchSettings({ articleRetentionDays: value })
+})
+
+watch(githubCopilotApiKey, (value) => {
+  settingsStore.patchSettings({ githubCopilotApiKey: value })
 })
 
 const themeLabel = computed(() => {
@@ -220,8 +227,20 @@ async function importOpml(event: Event) {
       <section class="settings-section">
         <p class="settings-section__title">AI 设置</p>
         <van-cell-group inset>
-          <van-cell title="摘要模型" :value="summaryProviderLabel" is-link @click="cycleSummaryProvider" />
+          <van-cell v-if="!onNative" title="摘要模型" :value="summaryProviderLabel" is-link @click="cycleSummaryProvider" />
           <van-cell title="摘要长度" :value="summaryLengthLabel" is-link @click="cycleSummaryLength" />
+          <van-cell v-if="onNative" title="GitHub Copilot API Key">
+            <template #label>
+              <input
+                v-model="githubCopilotApiKey"
+                class="api-key-input"
+                type="password"
+                placeholder="输入 GitHub Copilot API Key"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </template>
+          </van-cell>
         </van-cell-group>
       </section>
 
@@ -237,9 +256,9 @@ async function importOpml(event: Event) {
             </template>
             <template #label>
               <div class="font-slider-wrap">
-                <span class="font-slider-label">7</span>
-                <input v-model="articleRetentionDays" class="font-range" type="range" min="7" max="180" step="1" />
-                <span class="font-slider-label">180</span>
+                <span class="font-slider-label">2</span>
+                <input v-model="articleRetentionDays" class="font-range" type="range" min="2" max="30" step="1" />
+                <span class="font-slider-label">30</span>
               </div>
             </template>
           </van-cell>

@@ -1122,6 +1122,18 @@ a {
   display: inline-block;
 }
 
+.api-key-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  padding: 4px 0;
+  outline: none;
+  font-family: monospace;
+}
+
 .settings-sections {
   display: grid;
   gap: 18px;
