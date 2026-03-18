@@ -61,7 +61,12 @@ const articleCounts = computed(() => {
 })
 
 const sortedSubscriptions = computed(() => {
+  const unreadMap = articleCounts.value.unreadMap
   return [...subscriptionStore.items].sort((a, b) => {
+    const aHasUnread = (unreadMap[a.id] ?? 0) > 0 ? 1 : 0
+    const bHasUnread = (unreadMap[b.id] ?? 0) > 0 ? 1 : 0
+    if (bHasUnread !== aHasUnread) return bHasUnread - aHasUnread
+
     const aLatest = Math.max(
       0,
       ...articleStore.items.filter((article) => article.subscriptionId === a.id).map(getArticleSortTimestamp)

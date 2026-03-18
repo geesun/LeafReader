@@ -234,9 +234,11 @@ async function importOpml(event: Event) {
               <input
                 v-model="githubCopilotApiKey"
                 class="api-key-input"
-                type="password"
+                type="text"
                 placeholder="输入 GitHub Copilot API Key"
-                autocomplete="off"
+                autocomplete="new-password"
+                autocorrect="off"
+                autocapitalize="none"
                 spellcheck="false"
               />
             </template>
