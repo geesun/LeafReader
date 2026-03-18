@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { SwipeCell } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
+import { isNative } from '@/services/nativeHttp'
 import { createWorkerUrl } from '@/services/workerClient'
 import type { ArticleRecord } from '@/types/models'
 import { extractLeadImageFromHtml, limitText } from '@/utils/text'
@@ -40,7 +41,7 @@ const coverImageUrl = computed(() => {
   if (!rawLeadImageUrl.value) return ''
 
   const absolute = toAbsoluteUrl(rawLeadImageUrl.value, props.article.link)
-  return createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', absolute)
+  return isNative() ? absolute : createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', absolute)
 })
 
 watch(coverImageUrl, () => {
