@@ -6,6 +6,7 @@ import type {
   FullTextResult
 } from '@/types/models'
 import { normalizeBaseUrl } from '@/utils/url'
+import { isNative, nativeFetchText } from '@/services/nativeHttp'
 
 function ensureBaseUrl(baseUrl: string): string {
   const normalized = normalizeBaseUrl(baseUrl)
@@ -27,6 +28,12 @@ export function createWorkerEndpointUrl(baseUrl: string, path: 'summarize' | 'tr
 }
 
 export async function fetchFeedXml(baseUrl: string, feedUrl: string): Promise<string> {
+  // On Android native, bypass the Worker proxy and fetch the RSS feed directly.
+  // CapacitorHttp uses the native HTTP stack and is not subject to CORS restrictions.
+  if (isNative()) {
+    return nativeFetchText(feedUrl)
+  }
+
   const response = await fetch(createWorkerUrl(baseUrl, 'rss', feedUrl))
   if (!response.ok) {
     throw new Error(`抓取订阅失败：${response.status}`)

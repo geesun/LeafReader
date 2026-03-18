@@ -1,5 +1,6 @@
 import { getDb } from '@/services/db'
 import { fetchAsset, extractFullText, createWorkerUrl } from '@/services/workerClient'
+import { isNative, nativeExtractFullText, nativeFetchAssetAsBlob } from '@/services/nativeHttp'
 import type { ArticleRecord, FullTextResult, OfflineAssetRecord } from '@/types/models'
 import { createId } from '@/utils/id'
 import { toAbsoluteUrl } from '@/utils/url'
@@ -34,7 +35,8 @@ export function proxyImagesForOnlineReading(html: string, articleLink: string, w
     const src = img.getAttribute('src')
     if (!src) return
     const absolute = toAbsoluteUrl(src, articleLink)
-    img.setAttribute('src', createWorkerUrl(workerBaseUrl, 'asset', absolute))
+    // On native Android, images can be loaded directly — no CORS proxy needed.
+    img.setAttribute('src', isNative() ? absolute : createWorkerUrl(workerBaseUrl, 'asset', absolute))
     img.setAttribute('loading', 'lazy')
   })
 
@@ -82,7 +84,11 @@ async function ensureContent(article: ArticleRecord, workerBaseUrl: string): Pro
     }
   }
 
-  const fullText: FullTextResult = await extractFullText(workerBaseUrl, article.link)
+  // On native, extract full text locally; on web, use the Worker proxy.
+  const fullText: FullTextResult = isNative()
+    ? await nativeExtractFullText(article.link)
+    : await extractFullText(workerBaseUrl, article.link)
+
   const updatedArticle: ArticleRecord = {
     ...article,
     fullContentHtml: fullText.contentHtml,
@@ -120,7 +126,19 @@ export async function saveArticleOffline(article: ArticleRecord, workerBaseUrl: 
     const localPath = `/__offline_asset__/${assetId}`
 
     try {
-      const response = await fetchAsset(workerBaseUrl, absolute)
+      let blob: Blob
+      let contentType: string
+      if (isNative()) {
+        // On native, fetch the image directly without going through the Worker proxy.
+        blob = await nativeFetchAssetAsBlob(absolute)
+        contentType = blob.type || 'application/octet-stream'
+      } else {
+        const response = await fetchAsset(workerBaseUrl, absolute)
+        blob = await response.blob()
+        contentType = response.headers.get('content-type') ?? 'application/octet-stream'
+      }
+
+      const response = new Response(blob, { headers: { 'content-type': contentType } })
       await cache.put(localPath, response.clone())
 
       const assetRecord: OfflineAssetRecord = {
@@ -128,8 +146,8 @@ export async function saveArticleOffline(article: ArticleRecord, workerBaseUrl: 
         articleId: sourceArticle.id,
         originalUrl: absolute,
         localPath,
-        mimeType: response.headers.get('content-type') ?? 'application/octet-stream',
-        byteSize: Number(response.headers.get('content-length') ?? 0),
+        mimeType: contentType,
+        byteSize: blob.size,
         status: 'success',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()

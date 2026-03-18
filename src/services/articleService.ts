@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify'
 import { getDb } from '@/services/db'
 import { clearOfflineAssets, removeArticleOffline, saveArticleOffline } from '@/services/offlineService'
 import { extractFullText, summarizeArticle, translateArticle } from '@/services/workerClient'
+import { isNative, nativeExtractFullText } from '@/services/nativeHttp'
 import type { ArticleRecord, BilingualParagraph, SummaryLength, SummaryProvider, TranslationBlockPayload } from '@/types/models'
 import { compareArticlesByRecency } from '@/utils/articleTime'
 import { compactTranslationBlocks, extractParagraphsFromHtml, looksLikeEnglishArticle, splitTextIntoParagraphBlocks, stripHtml } from '@/utils/text'
@@ -120,7 +121,10 @@ export async function toggleFavorite(article: ArticleRecord): Promise<ArticleRec
 }
 
 export async function fetchArticleFullText(article: ArticleRecord, workerBaseUrl: string): Promise<ArticleRecord> {
-  const fullText = await extractFullText(workerBaseUrl, article.link)
+  // On Android native, extract full text locally using Readability (no Worker needed).
+  const fullText = isNative()
+    ? await nativeExtractFullText(article.link)
+    : await extractFullText(workerBaseUrl, article.link)
   const updated: ArticleRecord = {
     ...article,
     fullContentHtml: fullText.contentHtml,
