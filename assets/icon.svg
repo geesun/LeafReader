@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="NeoReader app icon">
+  <defs>
+    <linearGradient id="bg" x1="44" y1="36" x2="356" y2="364" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#79B9FF"/>
+      <stop offset="0.52" stop-color="#4E86E8"/>
+      <stop offset="1" stop-color="#2D59BF"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="118" y1="70" x2="286" y2="314" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4E86E8"/>
+      <stop offset="1" stop-color="#2D59BF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="400" rx="94" fill="url(#bg)"/>
+  <circle cx="200" cy="200" r="152" fill="#FFFFFF" fill-opacity="0.96"/>
+
+  <g fill="none" stroke="url(#stroke)" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M200 144 L200 258 M200 144 C181 139 146 139 128 149 L128 254 C146 245 181 245 200 250 M200 144 C219 139 254 139 272 149 L272 254 C254 245 219 245 200 250" stroke-width="12"/>
+    <path d="M146 118 C163 106 237 106 254 118" stroke-width="12"/>
+    <path d="M169 92 C181 84 219 84 231 92" stroke-width="10"/>
+    <path d="M186 72 C191 69 209 69 214 72" stroke-width="8"/>
+    <path d="M128 284 C163 310 237 310 272 284" stroke-width="12"/>
+    <path d="M103 174 C95 193 95 231 103 250" stroke-width="12"/>
+    <path d="M297 174 C305 193 305 231 297 250" stroke-width="12"/>
+  </g>
+</svg>
