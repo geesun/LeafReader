@@ -3,7 +3,7 @@ let savedScrollY = 0
 </script>
 
 <script setup lang="ts">
-import { nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { nextTick, onMounted } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 
 import ArticleListItem from '@/components/ArticleListItem.vue'
@@ -22,17 +22,12 @@ async function openArticle(article: (typeof articleStore.items)[number]) {
 onBeforeRouteLeave((to) => {
   if (to.name === 'article') {
     savedScrollY = window.scrollY
-    // 离开时移除滚动条隐藏（在导航到文章页前）
-    document.documentElement.classList.remove('hide-scrollbar')
   } else {
     savedScrollY = 0
   }
 })
 
 onMounted(async () => {
-  // 隐藏滚动条
-  document.documentElement.classList.add('hide-scrollbar')
-  
   await articleStore.loadFavorites()
 
   if (savedScrollY > 0) {
@@ -45,11 +40,6 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => {
-  // 恢复滚动条
-  document.documentElement.classList.remove('hide-scrollbar')
-})
-
 async function markArticleRead(article: (typeof articleStore.items)[number]) {
   if (article.isRead) return
   await articleStore.setRead(article, true)
@@ -57,7 +47,7 @@ async function markArticleRead(article: (typeof articleStore.items)[number]) {
 </script>
 
 <template>
-  <section class="page page--sticky-header page--hide-scrollbar">
+  <section class="page page--sticky-header">
     <header class="page-header page-header--sticky">
       <div>
         <p class="eyebrow">Library</p>

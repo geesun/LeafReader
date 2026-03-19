@@ -34,9 +34,6 @@ function updateHeaderOffset() {
 }
 
 onMounted(() => {
-  // 确保滚动条可见（文章页面需要显示滚动条）
-  document.documentElement.classList.remove('hide-scrollbar')
-  
   headerResizeObserver = new ResizeObserver(updateHeaderOffset)
   if (headerRef.value) headerResizeObserver.observe(headerRef.value)
 })

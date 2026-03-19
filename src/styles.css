@@ -98,27 +98,28 @@ a {
   padding-top: calc(182px + env(safe-area-inset-top));
 }
 
-/* 隐藏滚动条（用于无限滚动列表页面） */
-.page--hide-scrollbar {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+/* 细滚动条样式 */
+html {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(128, 128, 128, 0.4) transparent; /* Firefox: thumb track */
 }
 
-.page--hide-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome/Safari/Opera */
+/* Chrome/Safari/Opera 细滚动条 */
+html::-webkit-scrollbar {
+  width: 2px;
 }
 
-/* 同时隐藏 body 和 html 的滚动条（因为列表页面使用 window 滚动） */
-/* 使用 JS 在 html 上添加 hide-scrollbar 类，避免 :has() 在首次加载时的时序问题 */
-html.hide-scrollbar,
-html.hide-scrollbar body {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+html::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-html.hide-scrollbar::-webkit-scrollbar,
-html.hide-scrollbar body::-webkit-scrollbar {
-  display: none;
+html::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.4);
+  border-radius: 1px;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.6);
 }
 
 .page--article.page--sticky-header {
