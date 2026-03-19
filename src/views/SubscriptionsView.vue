@@ -607,7 +607,7 @@ onBeforeUnmount(() => {
     <header class="page-header page-header--aligned page-header--sticky">
       <div>
         <p class="eyebrow">Feeds</p>
-        <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }} <small v-if="!hasSelection" class="article-count">{{ articleStore.totalCount }} 篇</small></h1>
+        <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }} <small v-if="!hasSelection" class="article-count">{{ subscriptionStore.items.length }} 订阅 {{ articleStore.totalCount }} 篇</small></h1>
       </div>
       <van-button
         v-if="hasSingleSelection"
