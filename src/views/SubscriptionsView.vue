@@ -267,6 +267,11 @@ async function prewarmSubscriptionIcon(subscription: SubscriptionRecord) {
   }
 
   const candidates = getSubscriptionIconCandidates(subscription)
+  const MIN_ICON_SIZE = 64 // 最小可接受的图标尺寸
+  
+  // 尝试加载所有候选图标，收集成功的结果
+  const results: Array<{ dataUrl: string; size: number }> = []
+  
   for (const candidate of candidates) {
     try {
       // On native Android, use CapacitorHttp to bypass CORS; on web use the Worker asset proxy.
@@ -286,22 +291,39 @@ async function prewarmSubscriptionIcon(subscription: SubscriptionRecord) {
             resolve(reader.result)
             return
           }
-
           reject(new Error('icon read failed'))
         }
         reader.onerror = () => reject(reader.error ?? new Error('icon read failed'))
         reader.readAsDataURL(blob)
       })
 
-      await subscriptionStore.update({
-        ...subscription,
-        cachedIconDataUrl: dataUrl,
-        iconLookupFailed: false,
-        updatedAt: subscription.updatedAt
+      // 获取图片尺寸
+      const size = await new Promise<number>((resolve) => {
+        const img = new Image()
+        img.onload = () => resolve(Math.max(img.naturalWidth, img.naturalHeight))
+        img.onerror = () => resolve(0)
+        img.src = dataUrl
       })
-      return
+      
+      if (size > 0) {
+        results.push({ dataUrl, size })
+        // 如果找到足够大的图标，直接使用，不再继续尝试
+        if (size >= MIN_ICON_SIZE) break
+      }
     } catch {
     }
+  }
+
+  // 选择分辨率最高的图标
+  if (results.length > 0) {
+    const best = results.reduce((a, b) => (a.size >= b.size ? a : b))
+    await subscriptionStore.update({
+      ...subscription,
+      cachedIconDataUrl: best.dataUrl,
+      iconLookupFailed: false,
+      updatedAt: subscription.updatedAt
+    })
+    return
   }
 
   await subscriptionStore.update({
