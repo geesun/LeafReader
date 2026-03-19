@@ -80,9 +80,143 @@ export async function listArticles(): Promise<ArticleRecord[]> {
   return articles.sort(compareArticlesByRecency)
 }
 
+/**
+ * 分页加载文章，使用 IndexedDB cursor 按发布时间倒序遍历
+ * @param offset 跳过的文章数
+ * @param limit 返回的文章数
+ * @param subscriptionId 可选，按订阅源过滤
+ */
+export async function listArticlesPaginated(
+  offset: number,
+  limit: number,
+  subscriptionId?: string
+): Promise<{ articles: ArticleRecord[]; hasMore: boolean }> {
+  const db = await getDb()
+  const tx = db.transaction('articles', 'readonly')
+
+  // 收集所有文章，然后排序（IndexedDB 的 by-published 索引是字符串排序，不完全准确）
+  // 为了保证与 compareArticlesByRecency 一致，我们仍需在内存中排序
+  // 但只在首次加载时获取全部 ID 和排序键，后续分页基于此
+  let articles: ArticleRecord[]
+
+  if (subscriptionId) {
+    articles = await tx.store.index('by-subscription').getAll(subscriptionId)
+  } else {
+    articles = await tx.store.getAll()
+  }
+
+  await tx.done
+
+  // 按时间排序（与 listArticles 保持一致）
+  articles.sort(compareArticlesByRecency)
+
+  // 分页
+  const paginated = articles.slice(offset, offset + limit)
+  const hasMore = offset + limit < articles.length
+
+  return { articles: paginated, hasMore }
+}
+
+/**
+ * 获取文章总数
+ */
+export async function countArticles(subscriptionId?: string): Promise<number> {
+  const db = await getDb()
+  if (subscriptionId) {
+    return db.countFromIndex('articles', 'by-subscription', subscriptionId)
+  }
+  return db.count('articles')
+}
+
+/**
+ * 订阅统计信息
+ */
+export interface SubscriptionStats {
+  subscriptionId: string
+  totalCount: number
+  unreadCount: number
+  latestTimestamp: number
+  latestArticleUrl: string
+}
+
+/**
+ * 获取所有订阅的统计信息（不加载文章内容到内存）
+ * 使用 IndexedDB cursor 遍历，只提取必要字段进行聚合
+ */
+export async function getSubscriptionStats(): Promise<Map<string, SubscriptionStats>> {
+  const db = await getDb()
+  const tx = db.transaction('articles', 'readonly')
+
+  const statsMap = new Map<string, SubscriptionStats>()
+
+  // 使用 cursor 遍历所有文章，只提取统计所需的字段
+  let cursor = await tx.store.openCursor()
+
+  while (cursor) {
+    const article = cursor.value
+    const subId = article.subscriptionId
+
+    // 计算文章时间戳（与 getArticleSortTimestamp 逻辑一致）
+    const timestamp = new Date(article.publishedAt || article.createdAt).getTime()
+
+    let stats = statsMap.get(subId)
+    if (!stats) {
+      stats = {
+        subscriptionId: subId,
+        totalCount: 0,
+        unreadCount: 0,
+        latestTimestamp: 0,
+        latestArticleUrl: ''
+      }
+      statsMap.set(subId, stats)
+    }
+
+    stats.totalCount++
+    if (!article.isRead) {
+      stats.unreadCount++
+    }
+
+    if (timestamp > stats.latestTimestamp) {
+      stats.latestTimestamp = timestamp
+      stats.latestArticleUrl = article.link
+    }
+
+    cursor = await cursor.continue()
+  }
+
+  await tx.done
+  return statsMap
+}
+
+/**
+ * 获取文章总数（所有订阅的文章总数）
+ */
+export async function getTotalArticleCount(): Promise<number> {
+  const db = await getDb()
+  return db.count('articles')
+}
+
+/**
+ * 直接使用索引查询收藏文章，避免全量加载
+ */
 export async function listFavoriteArticles(): Promise<ArticleRecord[]> {
-  const articles = await listArticles()
-  return articles.filter((article) => article.isFavorite)
+  const db = await getDb()
+  // isFavorite 存储为 boolean，但索引值为 1 (true) 或 0 (false)
+  // 使用 getAllFromIndex 直接查询 isFavorite = true 的文章
+  const tx = db.transaction('articles', 'readonly')
+  const index = tx.store.index('by-favorite')
+
+  const articles: ArticleRecord[] = []
+  let cursor = await index.openCursor(IDBKeyRange.only(1))
+
+  while (cursor) {
+    articles.push(cursor.value)
+    cursor = await cursor.continue()
+  }
+
+  await tx.done
+
+  return articles.sort(compareArticlesByRecency)
 }
 
 export async function getArticle(id: string): Promise<ArticleRecord | undefined> {
@@ -308,4 +442,55 @@ export async function markArticlesReadByIds(articleIds: string[]): Promise<void>
   }
 
   await tx.done
+}
+
+/**
+ * 标记筛选条件下的所有未读文章为已读
+ * @param subscriptionId 可选，按订阅源过滤
+ * @param filter 筛选条件：'all' | 'unread' | 'favorites'
+ * @returns 标记的文章数量
+ */
+export async function markFilteredArticlesRead(
+  subscriptionId?: string,
+  filter?: 'all' | 'unread' | 'favorites'
+): Promise<number> {
+  const db = await getDb()
+  const tx = db.transaction('articles', 'readwrite')
+
+  let cursor
+  if (subscriptionId) {
+    cursor = await tx.store.index('by-subscription').openCursor(subscriptionId)
+  } else {
+    cursor = await tx.store.openCursor()
+  }
+
+  let count = 0
+  const now = new Date().toISOString()
+
+  while (cursor) {
+    const article = cursor.value
+
+    // 应用筛选条件
+    const matchesFilter =
+      filter === 'all' || !filter
+        ? true
+        : filter === 'unread'
+          ? !article.isRead
+          : article.isFavorite
+
+    if (matchesFilter && !article.isRead) {
+      await cursor.update({
+        ...article,
+        isRead: true,
+        readAt: article.readAt ?? now,
+        updatedAt: now
+      })
+      count++
+    }
+
+    cursor = await cursor.continue()
+  }
+
+  await tx.done
+  return count
 }

@@ -98,6 +98,26 @@ a {
   padding-top: calc(182px + env(safe-area-inset-top));
 }
 
+/* 隐藏滚动条（用于无限滚动列表页面） */
+.page--hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.page--hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
+}
+
+/* 同时隐藏 body 的滚动条（因为列表页面使用 window 滚动） */
+body:has(.page--hide-scrollbar) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body:has(.page--hide-scrollbar)::-webkit-scrollbar {
+  display: none;
+}
+
 .page--article.page--sticky-header {
   padding-top: calc(var(--article-header-height, 132px) + 16px + env(safe-area-inset-top));
 }

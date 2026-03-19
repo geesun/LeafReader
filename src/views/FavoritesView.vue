@@ -55,7 +55,12 @@ async function markArticleRead(article: (typeof articleStore.items)[number]) {
       </div>
     </header>
 
-    <div v-if="articleStore.items.length" class="article-list">
+    <!-- 加载中状态 -->
+    <div v-if="articleStore.loading" class="loading-placeholder">
+      <van-loading size="24px">加载中...</van-loading>
+    </div>
+
+    <div v-else-if="articleStore.items.length" class="article-list">
       <ArticleListItem
         v-for="article in articleStore.items"
         :key="article.id"
@@ -70,3 +75,12 @@ async function markArticleRead(article: (typeof articleStore.items)[number]) {
     <van-empty v-else description="还没有收藏文章" />
   </section>
 </template>
+
+<style scoped>
+.loading-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px 16px;
+}
+</style>

@@ -30,6 +30,7 @@ const results = computed(() => {
 })
 
 onMounted(async () => {
+  // 搜索页面需要全量加载以支持本地搜索
   await articleStore.loadAll()
 })
 
@@ -50,7 +51,12 @@ async function markArticleRead(article: (typeof results.value)[number]) {
 
     <van-search v-model="keyword" placeholder="搜索标题、摘要、正文" />
 
-    <div v-if="results.length" class="article-list">
+    <!-- 加载中状态 -->
+    <div v-if="articleStore.loading" class="loading-placeholder">
+      <van-loading size="24px">加载中...</van-loading>
+    </div>
+
+    <div v-else-if="results.length" class="article-list">
       <ArticleListItem
         v-for="article in results"
         :key="article.id"
@@ -62,6 +68,15 @@ async function markArticleRead(article: (typeof results.value)[number]) {
       />
     </div>
 
-    <van-empty v-else description="没有匹配结果" />
+    <van-empty v-else :description="keyword ? '没有匹配结果' : '暂无文章'" />
   </section>
 </template>
+
+<style scoped>
+.loading-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px 16px;
+}
+</style>

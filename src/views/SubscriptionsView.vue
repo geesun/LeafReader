@@ -12,7 +12,6 @@ import { showConfirmDialog, showToast } from 'vant'
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { createWorkerUrl } from '@/services/workerClient'
 import { isNative } from '@/services/nativeHttp'
-import { getArticleSortTimestamp } from '@/utils/articleTime'
 import type { SubscriptionRecord } from '@/types/models'
 import { buildSubscriptionIconCandidates, shouldUseTextOnlySubscriptionIcon } from '@/utils/url'
 import { useArticleStore } from '@/stores/articles'
@@ -51,53 +50,43 @@ const articleCounts = computed(() => {
   const totalMap: Record<string, number> = {}
   const unreadMap: Record<string, number> = {}
 
-  for (const article of articleStore.items) {
-    totalMap[article.subscriptionId] = (totalMap[article.subscriptionId] ?? 0) + 1
-    if (!article.isRead) {
-      unreadMap[article.subscriptionId] = (unreadMap[article.subscriptionId] ?? 0) + 1
-    }
+  // 使用预聚合的统计数据，而不是遍历所有文章
+  for (const [subId, stats] of articleStore.subscriptionStats) {
+    totalMap[subId] = stats.totalCount
+    unreadMap[subId] = stats.unreadCount
   }
 
   return { totalMap, unreadMap }
 })
 
 const sortedSubscriptions = computed(() => {
+  const stats = articleStore.subscriptionStats
   const unreadMap = articleCounts.value.unreadMap
+
   return [...subscriptionStore.items].sort((a, b) => {
     const aHasUnread = (unreadMap[a.id] ?? 0) > 0 ? 1 : 0
     const bHasUnread = (unreadMap[b.id] ?? 0) > 0 ? 1 : 0
     if (bHasUnread !== aHasUnread) return bHasUnread - aHasUnread
 
-    const aLatest = Math.max(
-      0,
-      ...articleStore.items.filter((article) => article.subscriptionId === a.id).map(getArticleSortTimestamp)
-    )
-
-    const bLatest = Math.max(
-      0,
-      ...articleStore.items.filter((article) => article.subscriptionId === b.id).map(getArticleSortTimestamp)
-    )
+    // 使用预计算的最新文章时间戳
+    const aLatest = stats.get(a.id)?.latestTimestamp ?? 0
+    const bLatest = stats.get(b.id)?.latestTimestamp ?? 0
 
     return bLatest - aLatest
   })
 })
 
 const latestArticleUrlMap = computed<Record<string, string>>(() => {
-  const next: Record<string, { url: string; timestamp: number }> = {}
+  const result: Record<string, string> = {}
 
-  for (const article of articleStore.items) {
-    const timestamp = getArticleSortTimestamp(article)
-    const current = next[article.subscriptionId]
-
-    if (!current || timestamp > current.timestamp) {
-      next[article.subscriptionId] = {
-        url: article.link,
-        timestamp
-      }
+  // 使用预聚合的统计数据
+  for (const [subId, stats] of articleStore.subscriptionStats) {
+    if (stats.latestArticleUrl) {
+      result[subId] = stats.latestArticleUrl
     }
   }
 
-  return Object.fromEntries(Object.entries(next).map(([subscriptionId, item]) => [subscriptionId, item.url]))
+  return result
 })
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
@@ -469,7 +458,7 @@ async function addSubscription() {
   submitting.value = true
   try {
     await subscriptionStore.add(feedUrl.value.trim(), DEFAULT_WORKER_BASE_URL)
-    await articleStore.loadAll()
+    await articleStore.loadSubscriptionStats()
     closeAddPopup()
     showToast('订阅已添加')
   } catch (error) {
@@ -490,7 +479,7 @@ async function deleteSelected() {
   }
 
   await subscriptionStore.removeMany(selectedIds.value)
-  await articleStore.loadAll()
+  await articleStore.loadSubscriptionStats()
   cancelSelection()
   showToast('已删除所选订阅')
 }
@@ -561,7 +550,7 @@ async function refreshSubscriptions() {
       }
     )
     
-    await articleStore.loadAll()
+    await articleStore.loadSubscriptionStats()
 
     if (summary.failureCount > 0) {
       showToast(`刷新完成，新增 ${summary.inserted} 篇，失败 ${summary.failureCount} 个订阅`)
@@ -585,7 +574,7 @@ onBeforeRouteLeave((to) => {
 })
 
 onMounted(async () => {
-  await Promise.all([subscriptionStore.load(), articleStore.loadAll()])
+  await Promise.all([subscriptionStore.load(), articleStore.loadSubscriptionStats()])
 
   if (savedScrollY > 0) {
     const y = savedScrollY
@@ -612,7 +601,7 @@ onBeforeUnmount(() => {
     <header class="page-header page-header--aligned page-header--sticky">
       <div>
         <p class="eyebrow">Feeds</p>
-        <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }} <small v-if="!hasSelection" class="article-count">{{ articleStore.items.length }} 篇</small></h1>
+        <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }} <small v-if="!hasSelection" class="article-count">{{ articleStore.totalCount }} 篇</small></h1>
       </div>
       <van-button
         v-if="hasSingleSelection"
