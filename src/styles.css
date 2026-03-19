@@ -108,13 +108,16 @@ a {
   display: none; /* Chrome/Safari/Opera */
 }
 
-/* 同时隐藏 body 的滚动条（因为列表页面使用 window 滚动） */
-body:has(.page--hide-scrollbar) {
+/* 同时隐藏 body 和 html 的滚动条（因为列表页面使用 window 滚动） */
+/* 使用 JS 在 html 上添加 hide-scrollbar 类，避免 :has() 在首次加载时的时序问题 */
+html.hide-scrollbar,
+html.hide-scrollbar body {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-body:has(.page--hide-scrollbar)::-webkit-scrollbar {
+html.hide-scrollbar::-webkit-scrollbar,
+html.hide-scrollbar body::-webkit-scrollbar {
   display: none;
 }
 

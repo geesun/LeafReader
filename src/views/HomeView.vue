@@ -337,6 +337,8 @@ onBeforeRouteLeave((to) => {
     savedScrollY = window.scrollY
     savedArticleCount = articleStore.items.length
     savedSubscriptionId = selectedSubscriptionId.value
+    // 离开时移除滚动条隐藏（在导航到文章页前）
+    document.documentElement.classList.remove('hide-scrollbar')
   } else {
     savedScrollY = 0
     savedArticleCount = 0
@@ -419,12 +421,18 @@ onMounted(async () => {
   window.addEventListener('scroll', handleScroll, { passive: true })
   document.addEventListener('click', handleOutsideClick)
   document.addEventListener('touchstart', handleOutsideClick)
+  
+  // 隐藏滚动条
+  document.documentElement.classList.add('hide-scrollbar')
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleScroll)
   document.removeEventListener('click', handleOutsideClick)
   document.removeEventListener('touchstart', handleOutsideClick)
+  
+  // 恢复滚动条
+  document.documentElement.classList.remove('hide-scrollbar')
 })
 </script>
 

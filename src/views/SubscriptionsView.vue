@@ -574,6 +574,9 @@ onBeforeRouteLeave((to) => {
 })
 
 onMounted(async () => {
+  // 隐藏滚动条
+  document.documentElement.classList.add('hide-scrollbar')
+  
   await Promise.all([subscriptionStore.load(), articleStore.loadSubscriptionStats()])
 
   if (savedScrollY > 0) {
@@ -593,11 +596,14 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearPressTimer()
   uiStore.setTabbarHidden(false)
+  
+  // 恢复滚动条
+  document.documentElement.classList.remove('hide-scrollbar')
 })
 </script>
 
 <template>
-  <section class="page page--subscriptions page--sticky-header">
+  <section class="page page--subscriptions page--sticky-header page--hide-scrollbar">
     <header class="page-header page-header--aligned page-header--sticky">
       <div>
         <p class="eyebrow">Feeds</p>

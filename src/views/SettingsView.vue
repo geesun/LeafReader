@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
@@ -54,7 +54,15 @@ function cycleSummaryLength() {
 }
 
 onMounted(async () => {
+  // 隐藏滚动条
+  document.documentElement.classList.add('hide-scrollbar')
+  
   await subscriptionStore.load()
+})
+
+onBeforeUnmount(() => {
+  // 恢复滚动条
+  document.documentElement.classList.remove('hide-scrollbar')
 })
 
 watch(fontSize, (value) => {
@@ -193,7 +201,7 @@ async function importOpml(event: Event) {
 </script>
 
 <template>
-  <section class="page page--sticky-header">
+  <section class="page page--sticky-header page--hide-scrollbar">
     <header class="page-header page-header--sticky">
       <div>
         <p class="eyebrow">Config</p>
