@@ -11,7 +11,7 @@ import { showConfirmDialog, showToast } from 'vant'
 
 import { DEFAULT_WORKER_BASE_URL } from '@/constants/settings'
 import { createWorkerUrl } from '@/services/workerClient'
-import { isNative } from '@/services/nativeHttp'
+import { isNative, nativeFetchAssetAsBlob } from '@/services/nativeHttp'
 import type { SubscriptionRecord } from '@/types/models'
 import { buildSubscriptionIconCandidates, shouldUseTextOnlySubscriptionIcon } from '@/utils/url'
 import { useArticleStore } from '@/stores/articles'
@@ -214,10 +214,13 @@ async function persistLoadedIcon(subscription: SubscriptionRecord, imageUrl: str
   }
 
   try {
-    const response = await fetch(imageUrl)
-    if (!response.ok) return
-
-    const blob = await response.blob()
+    // Android 上使用 CapacitorHttp 绕过 CORS，Web 上使用普通 fetch
+    const blob = isNative()
+      ? await nativeFetchAssetAsBlob(imageUrl)
+      : await fetch(imageUrl).then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.blob()
+        })
     if (!blob.type.startsWith('image/')) return
 
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -266,12 +269,14 @@ async function prewarmSubscriptionIcon(subscription: SubscriptionRecord) {
   const candidates = getSubscriptionIconCandidates(subscription)
   for (const candidate of candidates) {
     try {
-      // On native Android, fetch icons directly; on web use the Worker asset proxy.
+      // On native Android, use CapacitorHttp to bypass CORS; on web use the Worker asset proxy.
       const iconUrl = isNative() ? candidate : createWorkerUrl(DEFAULT_WORKER_BASE_URL, 'asset', candidate)
-      const response = await fetch(iconUrl)
-      if (!response.ok) continue
-
-      const blob = await response.blob()
+      const blob = isNative()
+        ? await nativeFetchAssetAsBlob(iconUrl)
+        : await fetch(iconUrl).then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`)
+            return r.blob()
+          })
       if (!blob.type.startsWith('image/')) continue
 
       const dataUrl = await new Promise<string>((resolve, reject) => {
