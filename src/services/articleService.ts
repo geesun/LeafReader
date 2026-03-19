@@ -99,10 +99,13 @@ export async function updateArticle(article: ArticleRecord): Promise<void> {
 }
 
 export async function markArticleRead(article: ArticleRecord, isRead: boolean): Promise<ArticleRecord> {
+  // Re-read from DB so we never spread a stale in-memory snapshot back.
+  const db = await getDb()
+  const fresh = (await db.get('articles', article.id)) ?? article
   const updated = {
-    ...article,
+    ...fresh,
     isRead,
-    readAt: isRead ? new Date().toISOString() : undefined,
+    readAt: isRead ? (fresh.readAt ?? new Date().toISOString()) : undefined,
     updatedAt: new Date().toISOString()
   }
   await updateArticle(updated)
@@ -110,9 +113,12 @@ export async function markArticleRead(article: ArticleRecord, isRead: boolean): 
 }
 
 export async function toggleFavorite(article: ArticleRecord): Promise<ArticleRecord> {
-  const nextFavorite = !article.isFavorite
+  // Re-read from DB so we never spread a stale in-memory snapshot back.
+  const db = await getDb()
+  const fresh = (await db.get('articles', article.id)) ?? article
+  const nextFavorite = !fresh.isFavorite
   const updated = {
-    ...article,
+    ...fresh,
     isFavorite: nextFavorite,
     favoriteAt: nextFavorite ? new Date().toISOString() : undefined,
     updatedAt: new Date().toISOString()
@@ -126,13 +132,18 @@ export async function fetchArticleFullText(article: ArticleRecord, workerBaseUrl
   const fullText = isNative()
     ? await nativeExtractFullText(article.link)
     : await extractFullText(workerBaseUrl, article.link)
+
+  // Re-read from DB after the async network call to avoid overwriting concurrent
+  // changes (e.g. isRead / isFavorite set while the request was in-flight).
+  const db = await getDb()
+  const fresh = (await db.get('articles', article.id)) ?? article
   const updated: ArticleRecord = {
-    ...article,
+    ...fresh,
     fullContentHtml: fullText.contentHtml,
-    contentText: article.contentText || fullText.textContent,
+    contentText: fresh.contentText || fullText.textContent,
     contentSource: 'fulltext',
     hasFullContent: true,
-    leadImageUrl: fullText.leadImageUrl || article.leadImageUrl,
+    leadImageUrl: fullText.leadImageUrl || fresh.leadImageUrl,
     updatedAt: new Date().toISOString()
   }
 
@@ -171,8 +182,11 @@ export async function generateArticleSummary(
         provider
       })
 
+  // Re-read from DB after the async AI call to avoid overwriting concurrent changes.
+  const db = await getDb()
+  const fresh = (await db.get('articles', article.id)) ?? article
   const updated: ArticleRecord = {
-    ...article,
+    ...fresh,
     aiSummaryText: result.summaryText,
     aiSummaryModel: result.model,
     aiSummaryGeneratedAt: result.generatedAt,
@@ -225,8 +239,11 @@ export async function generateArticleTranslation(
     throw new Error('AI 未返回可用的翻译结果')
   }
 
+  // Re-read from DB after the async AI call to avoid overwriting concurrent changes.
+  const db = await getDb()
+  const fresh = (await db.get('articles', article.id)) ?? article
   const updated: ArticleRecord = {
-    ...article,
+    ...fresh,
     aiTranslationBlocks: bilingualBlocks,
     aiTranslationModel: result.model,
     aiTranslationGeneratedAt: result.generatedAt,

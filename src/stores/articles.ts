@@ -32,7 +32,17 @@ export const useArticleStore = defineStore('articles', {
     async loadAll() {
       this.loading = true
       try {
-        this.items = await listArticles()
+        const fromDb = await listArticles()
+        // Merge DB results with in-memory state: for articles already in memory,
+        // keep the in-memory version if it is newer (higher updatedAt), so that
+        // a concurrent loadAll triggered by refreshAll doesn't overwrite user
+        // actions (setRead, toggleFavorite) that are in-flight or just committed.
+        const memoryMap = new Map(this.items.map((a) => [a.id, a]))
+        this.items = fromDb.map((dbItem) => {
+          const mem = memoryMap.get(dbItem.id)
+          if (mem && mem.updatedAt > dbItem.updatedAt) return mem
+          return dbItem
+        })
       } finally {
         this.loading = false
       }
@@ -70,12 +80,7 @@ export const useArticleStore = defineStore('articles', {
     async saveOffline(article: ArticleRecord, workerBaseUrl: string) {
       const updated = await saveArticleWithOfflineAssets(article, workerBaseUrl)
       this.current = updated
-      this.items = this.items.map((item) => {
-        if (item.id !== updated.id) return item
-        // Preserve the in-memory isRead state to avoid a stale DB read
-        // racing with the setRead call that preceded saveOffline
-        return { ...updated, isRead: item.isRead }
-      })
+      this.items = this.items.map((item) => (item.id === updated.id ? updated : item))
       return updated
     },
     async generateSummary(

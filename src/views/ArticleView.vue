@@ -232,8 +232,11 @@ async function loadArticle(id: string) {
 
   // Run offline save after the article is already visible and scroll is reset,
   // so it never triggers a mid-read scroll jump
-  if (current && !current.isOfflineSaved) {
-    articleStore.saveOffline(current, DEFAULT_WORKER_BASE_URL).catch(() => {})
+  // Use articleStore.current (updated by setRead above) instead of the stale
+  // local `current` snapshot, to avoid overwriting isRead when saving offline.
+  const latest = articleStore.current
+  if (latest && !latest.isOfflineSaved) {
+    articleStore.saveOffline(latest, DEFAULT_WORKER_BASE_URL).catch(() => {})
   }
 }
 

@@ -50,8 +50,16 @@ export async function createSubscriptionFromUrl(
 export async function refreshSubscription(subscription: SubscriptionRecord, workerBaseUrl: string): Promise<number> {
   const xml = await fetchFeedXml(workerBaseUrl, subscription.feedUrl)
   const parsed = parseFeedXml(xml)
-  const inserted = await syncFeedItems(subscription.id, parsed.items)
+  
   const db = await getDb()
+  const beforeCount = (await db.countFromIndex('articles', 'by-subscription', subscription.id))
+  
+  await syncFeedItems(subscription.id, parsed.items)
+  
+  // 直接从 DB 计算实际插入数，而不是依赖 syncFeedItems 的返回值
+  const afterCountBeforeTrim = (await db.countFromIndex('articles', 'by-subscription', subscription.id))
+  const inserted = afterCountBeforeTrim - beforeCount
+  
   // Re-read from IDB to avoid overwriting concurrent writes (e.g. from other
   // parallel refresh workers that may have updated this record).
   const fresh = (await db.get('subscriptions', subscription.id)) ?? subscription

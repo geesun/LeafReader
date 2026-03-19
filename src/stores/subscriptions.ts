@@ -147,7 +147,8 @@ export const useSubscriptionStore = defineStore('subscriptions', {
             if (!subscription) return
 
             try {
-              summary.inserted += await refreshSubscription(subscription, workerBaseUrl)
+              const insertedCount = await refreshSubscription(subscription, workerBaseUrl)
+              summary.inserted += insertedCount
               summary.successCount += 1
               completed += 1
               onProgress?.({

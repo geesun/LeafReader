@@ -89,17 +89,19 @@ async function ensureContent(article: ArticleRecord, workerBaseUrl: string): Pro
     ? await nativeExtractFullText(article.link)
     : await extractFullText(workerBaseUrl, article.link)
 
+  // Re-read from DB after async network call to avoid overwriting concurrent changes.
+  const db = await getDb()
+  const fresh = (await db.get('articles', article.id)) ?? article
   const updatedArticle: ArticleRecord = {
-    ...article,
+    ...fresh,
     fullContentHtml: fullText.contentHtml,
-    contentText: article.contentText || fullText.textContent,
+    contentText: fresh.contentText || fullText.textContent,
     contentSource: 'fulltext',
     hasFullContent: true,
-    leadImageUrl: fullText.leadImageUrl || article.leadImageUrl,
+    leadImageUrl: fullText.leadImageUrl || fresh.leadImageUrl,
     updatedAt: new Date().toISOString()
   }
 
-  const db = await getDb()
   await db.put('articles', updatedArticle)
 
   return {
@@ -173,8 +175,12 @@ export async function saveArticleOffline(article: ArticleRecord, workerBaseUrl: 
     }
   }
 
+  // Re-read from DB after all the async image-fetching I/O above, so we don't
+  // overwrite isRead / isFavorite / aiSummary etc. that may have been updated
+  // concurrently while images were being downloaded.
+  const freshForSave = (await db.get('articles', sourceArticle.id)) ?? sourceArticle
   const updatedArticle: ArticleRecord = {
-    ...sourceArticle,
+    ...freshForSave,
     offlineContentHtml: rewriteArticleHtml(html, replacements),
     isOfflineSaved: true,
     offlineSavedAt: new Date().toISOString(),
@@ -195,8 +201,10 @@ export async function removeArticleOffline(article: ArticleRecord): Promise<Arti
     await db.delete('offline_assets', asset.id)
   }
 
+  // Re-read from DB to avoid overwriting any concurrent field changes.
+  const fresh = (await db.get('articles', article.id)) ?? article
   const updatedArticle: ArticleRecord = {
-    ...article,
+    ...fresh,
     offlineContentHtml: undefined,
     isOfflineSaved: false,
     offlineSavedAt: undefined,
@@ -210,7 +218,6 @@ export async function removeArticleOffline(article: ArticleRecord): Promise<Arti
 export async function clearOfflineAssets(): Promise<void> {
   const db = await getDb()
   const cache = await caches.open(OFFLINE_CACHE)
-  const articles = await db.getAll('articles')
   const offlineAssets = await db.getAll('offline_assets')
 
   for (const asset of offlineAssets) {
@@ -218,15 +225,21 @@ export async function clearOfflineAssets(): Promise<void> {
     await db.delete('offline_assets', asset.id)
   }
 
+  // Open the transaction AFTER all async cache/IDB deletes above so we read
+  // the freshest article data, avoiding the stale-read-then-write hazard.
   const tx = db.transaction('articles', 'readwrite')
-  for (const article of articles) {
-    await tx.store.put({
-      ...article,
-      offlineContentHtml: undefined,
-      isOfflineSaved: false,
-      offlineSavedAt: undefined,
-      updatedAt: new Date().toISOString()
-    })
+  let cursor = await tx.store.openCursor()
+  while (cursor) {
+    if (cursor.value.isOfflineSaved) {
+      await cursor.update({
+        ...cursor.value,
+        offlineContentHtml: undefined,
+        isOfflineSaved: false,
+        offlineSavedAt: undefined,
+        updatedAt: new Date().toISOString()
+      })
+    }
+    cursor = await cursor.continue()
   }
   await tx.done
 }

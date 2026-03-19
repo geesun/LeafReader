@@ -118,10 +118,9 @@ async function refreshAll() {
 
     if (summary.failureCount > 0) {
       showToast(`刷新完成，新增 ${summary.inserted} 篇，失败 ${summary.failureCount} 个订阅`)
-      return
+    } else {
+      showToast(`刷新完成，新增 ${summary.inserted} 篇文章`)
     }
-
-    showToast(`刷新完成，新增 ${summary.inserted} 篇文章`)
   } catch (error) {
     showToast(error instanceof Error ? error.message : '刷新失败')
   } finally {
@@ -367,3 +366,6 @@ onBeforeUnmount(() => {
     </van-popup>
   </section>
 </template>
+
+<style scoped>
+</style>

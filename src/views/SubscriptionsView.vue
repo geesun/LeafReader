@@ -42,6 +42,7 @@ const iconAttemptMap = ref<Record<string, number>>({})
 const iconPersistingMap = ref<Record<string, boolean>>({})
 const iconReadyMap = ref<Record<string, boolean>>({})
 
+// DEBUG: 调试信息
 let pressTimer: number | undefined
 let activePressId: string | undefined
 let longPressHandled = false
@@ -559,6 +560,7 @@ async function refreshSubscriptions() {
         refreshCurrentTitle.value = title
       }
     )
+    
     await articleStore.loadAll()
 
     if (summary.failureCount > 0) {
@@ -610,7 +612,7 @@ onBeforeUnmount(() => {
     <header class="page-header page-header--aligned page-header--sticky">
       <div>
         <p class="eyebrow">Feeds</p>
-        <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }}</h1>
+        <h1>{{ hasSelection ? '选择订阅' : '订阅首页' }} <small v-if="!hasSelection" class="article-count">{{ articleStore.items.length }} 篇</small></h1>
       </div>
       <van-button
         v-if="hasSingleSelection"
@@ -711,3 +713,12 @@ onBeforeUnmount(() => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.article-count {
+  font-size: 14px;
+  font-weight: normal;
+  color: var(--color-text-secondary, #888);
+  margin-left: 4px;
+}
+</style>
