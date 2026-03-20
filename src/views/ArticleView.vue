@@ -34,11 +34,17 @@ function updateHeaderOffset() {
 }
 
 onMounted(() => {
+  // 重置滚动位置，避免影响返回列表页时的滚动恢复
+  window.scrollTo({ top: 0, behavior: 'instant' })
+  
   headerResizeObserver = new ResizeObserver(updateHeaderOffset)
   if (headerRef.value) headerResizeObserver.observe(headerRef.value)
 })
 
 onBeforeUnmount(() => {
+  // 离开前重置滚动位置，防止浏览器记住文章页的滚动位置
+  window.scrollTo({ top: 0, behavior: 'instant' })
+  
   headerResizeObserver?.disconnect()
   document.documentElement.style.removeProperty('--article-header-height')
 })
